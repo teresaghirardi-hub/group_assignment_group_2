@@ -1,0 +1,3 @@
+Returns
+SMA_20
+RSI_14
