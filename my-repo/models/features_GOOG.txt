@@ -1,0 +1,6 @@
+Returns
+SMA_20
+Volatility_5
+Volume_Change
+RSI_14
+Price_Range
