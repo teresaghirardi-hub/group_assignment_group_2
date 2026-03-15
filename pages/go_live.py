@@ -14,6 +14,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from datetime import date, timedelta
 from pathlib import Path
+from sklearn.linear_model import LogisticRegression
 
 # Make pysimfin.py importable
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -158,6 +159,50 @@ def prepare_for_prediction(df: pd.DataFrame, feature_cols: list) -> pd.DataFrame
     return df[feature_cols].dropna()
 
 
+# ── Sklearn Compatibility Fix ──────────────────────────────────────────────────
+
+def fix_sklearn_compatibility(obj):
+    """
+    Fix compatibility issues with models saved in older sklearn versions.
+    
+    In sklearn 1.5+, the 'multi_class' parameter was removed from LogisticRegression.
+    Old models may not have this attribute, but new sklearn code tries to read it.
+    
+    Solution: ADD the attribute with default value 'auto' if it doesn't exist.
+    """
+    # Direct LogisticRegression
+    if isinstance(obj, LogisticRegression):
+        if not hasattr(obj, 'multi_class'):
+            # Add the attribute with the default value expected by sklearn
+            object.__setattr__(obj, 'multi_class', 'deprecated')
+        return obj
+    
+    # Pipeline
+    if hasattr(obj, 'steps'):
+        for name, step in obj.steps:
+            fix_sklearn_compatibility(step)
+    
+    # VotingClassifier or similar ensemble with estimators_
+    if hasattr(obj, 'estimators_'):
+        for est in obj.estimators_:
+            fix_sklearn_compatibility(est)
+    
+    # VotingClassifier with estimators (list of tuples)
+    if hasattr(obj, 'estimators'):
+        for item in obj.estimators:
+            if isinstance(item, tuple):
+                fix_sklearn_compatibility(item[1])
+            else:
+                fix_sklearn_compatibility(item)
+    
+    # Named steps in pipeline
+    if hasattr(obj, 'named_steps'):
+        for name, step in obj.named_steps.items():
+            fix_sklearn_compatibility(step)
+    
+    return obj
+
+
 # ── Model loader ───────────────────────────────────────────────────────────────
 MODELS_DIR = Path(__file__).parent.parent / "models"
 
@@ -165,62 +210,61 @@ MODELS_DIR = Path(__file__).parent.parent / "models"
 @st.cache_resource
 def load_model(ticker: str, model_type: str):
     """
-    Load model and features.
-    
-    Args:
-        ticker: Stock ticker (e.g., 'AMZN')
-        model_type: 'binary' or 'multi'
+    Load a trained model pipeline and its feature list.
+    model_type: 'binary' or 'multi'
     """
     model_path = MODELS_DIR / f"model_{ticker}_{model_type}.joblib"
     features_path = MODELS_DIR / f"features_{ticker}_{model_type}.txt"
-    
+
     if not model_path.exists():
-        raise FileNotFoundError(
-            f"Model not found: {model_path}\n"
-            f"Run notebooks/ml_model_{model_type}.ipynb first."
-        )
-    
+        raise FileNotFoundError(f"Model not found: {model_path}")
+    if not features_path.exists():
+        raise FileNotFoundError(f"Features file not found: {features_path}")
+
     pipeline = joblib.load(model_path)
+    
+    # Fix sklearn compatibility BEFORE using the model
+    pipeline = fix_sklearn_compatibility(pipeline)
+
     with open(features_path) as f:
         features = [line.strip() for line in f if line.strip()]
-    
+
     return pipeline, features
 
 
-# ── Chart builder ──────────────────────────────────────────────────────────────
-def candlestick_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
-    col = {c.lower(): c for c in df.columns}
+# ── Candlestick chart ──────────────────────────────────────────────────────────
+
+def candlestick_chart(df: pd.DataFrame, ticker: str):
+    col_map = {c.lower(): c for c in df.columns}
+    date_col = col_map.get("date", "date")
     
-    fig = go.Figure()
-    fig.add_trace(go.Candlestick(
-        x=df[col["date"]], open=df[col["open"]], high=df[col["high"]],
-        low=df[col["low"]], close=df[col["close"]], name=ticker,
-        increasing_line_color="#10b981", decreasing_line_color="#ef4444",
-        increasing_fillcolor="rgba(16,185,129,0.25)",
-        decreasing_fillcolor="rgba(239,68,68,0.25)",
-    ))
-    
-    sma20 = df[col["close"]].rolling(20).mean()
-    fig.add_trace(go.Scatter(x=df[col["date"]], y=sma20, mode="lines",
-        name="SMA 20", line=dict(color="#63b3ed", width=1.5, dash="dot")))
-    
+    fig = go.Figure(data=[go.Candlestick(
+        x=df[date_col],
+        open=df[col_map.get("open", "open")],
+        high=df[col_map.get("high", "high")],
+        low=df[col_map.get("low", "low")],
+        close=df[col_map.get("close", "close")],
+        increasing_line_color="#10b981",
+        decreasing_line_color="#ef4444",
+    )])
     fig.update_layout(
-        paper_bgcolor="#0a0e1a", plot_bgcolor="#111827",
-        font=dict(color="#94a3b8", family="Space Grotesk"),
-        title=dict(text=f"{ticker} — Price History", font=dict(color="#e2e8f0", size=15)),
-        xaxis=dict(gridcolor="#1e293b", rangeslider_visible=False),
-        yaxis=dict(gridcolor="#1e293b"),
-        legend=dict(bgcolor="rgba(0,0,0,0)"),
-        margin=dict(l=0, r=0, t=40, b=0), height=400,
+        title=f"{ticker} Price History",
+        template="plotly_dark",
+        paper_bgcolor="#0a0e1a",
+        plot_bgcolor="#0a0e1a",
+        xaxis_rangeslider_visible=False,
+        xaxis=dict(gridcolor="#1e293b"),
+        yaxis=dict(gridcolor="#1e293b", tickprefix="$"),
+        margin=dict(l=0, r=0, t=40, b=0),
+        height=350,
     )
     return fig
 
 
-# ── Prediction display ─────────────────────────────────────────────────────────
+# ── Display prediction ─────────────────────────────────────────────────────────
+
 def display_prediction(pipeline, X_latest, model_type: str, ticker: str):
-    prediction = int(pipeline.predict(X_latest)[0])
-    probabilities = pipeline.predict_proba(X_latest)[0]
-    confidence = float(probabilities[prediction]) * 100
+    """Show prediction results with confidence."""
     
     if model_type == "binary":
         class_names = CLASS_NAMES_BINARY
@@ -232,6 +276,11 @@ def display_prediction(pipeline, X_latest, model_type: str, ticker: str):
         class_colors = CLASS_COLORS_MULTI
         class_icons = CLASS_ICONS_MULTI
         class_actions = CLASS_ACTIONS_MULTI
+    
+    # Get prediction and probabilities
+    prediction = int(pipeline.predict(X_latest)[0])
+    probabilities = pipeline.predict_proba(X_latest)[0]
+    confidence = probabilities[prediction] * 100
     
     pred_color = class_colors[prediction]
     pred_icon = class_icons[prediction]

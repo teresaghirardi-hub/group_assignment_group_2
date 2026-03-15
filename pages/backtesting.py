@@ -23,6 +23,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from datetime import date, timedelta
 from pathlib import Path
+from sklearn.linear_model import LogisticRegression
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pysimfin import PySimFin, SimFinAPIError, SimFinNotFoundError, SimFinRateLimitError
@@ -146,6 +147,50 @@ def add_technical_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# ── Sklearn Compatibility Fix ──────────────────────────────────────────────────
+
+def fix_sklearn_compatibility(obj):
+    """
+    Fix compatibility issues with models saved in older sklearn versions.
+    
+    In sklearn 1.5+, the 'multi_class' parameter was removed from LogisticRegression.
+    Old models may not have this attribute, but new sklearn code tries to read it.
+    
+    Solution: ADD the attribute with default value 'deprecated' if it doesn't exist.
+    """
+    # Direct LogisticRegression
+    if isinstance(obj, LogisticRegression):
+        if not hasattr(obj, 'multi_class'):
+            # Add the attribute with the default value expected by sklearn
+            object.__setattr__(obj, 'multi_class', 'deprecated')
+        return obj
+    
+    # Pipeline
+    if hasattr(obj, 'steps'):
+        for name, step in obj.steps:
+            fix_sklearn_compatibility(step)
+    
+    # VotingClassifier or similar ensemble with estimators_
+    if hasattr(obj, 'estimators_'):
+        for est in obj.estimators_:
+            fix_sklearn_compatibility(est)
+    
+    # VotingClassifier with estimators (list of tuples)
+    if hasattr(obj, 'estimators'):
+        for item in obj.estimators:
+            if isinstance(item, tuple):
+                fix_sklearn_compatibility(item[1])
+            else:
+                fix_sklearn_compatibility(item)
+    
+    # Named steps in pipeline
+    if hasattr(obj, 'named_steps'):
+        for name, step in obj.named_steps.items():
+            fix_sklearn_compatibility(step)
+    
+    return obj
+
+
 # ── Model loader ───────────────────────────────────────────────────────────────
 MODELS_DIR = Path(__file__).parent.parent / "models"
 
@@ -154,74 +199,82 @@ MODELS_DIR = Path(__file__).parent.parent / "models"
 def load_model(ticker: str, model_type: str):
     model_path = MODELS_DIR / f"model_{ticker}_{model_type}.joblib"
     features_path = MODELS_DIR / f"features_{ticker}_{model_type}.txt"
+
     if not model_path.exists():
         raise FileNotFoundError(f"Model not found: {model_path}")
+    if not features_path.exists():
+        raise FileNotFoundError(f"Features file not found: {features_path}")
+
     pipeline = joblib.load(model_path)
+    
+    # Fix sklearn compatibility BEFORE using the model
+    pipeline = fix_sklearn_compatibility(pipeline)
+
     with open(features_path) as f:
         features = [line.strip() for line in f if line.strip()]
+
     return pipeline, features
 
 
-# ── Backtest simulations ───────────────────────────────────────────────────────
+# ── Backtest simulation ────────────────────────────────────────────────────────
 
-def run_backtest_binary(df: pd.DataFrame, pipeline, features: list, initial_cash: float) -> pd.DataFrame:
+def run_backtest_binary(df: pd.DataFrame, pipeline, feature_cols: list, initial_cash: float):
     """
-    Binary strategy: prediction=1 → BUY 1 share | prediction=0 → SELL all shares.
+    Binary strategy: BUY on Rise (1), SELL on Fall (0).
     """
-    col_map   = {c.lower(): c for c in df.columns}
+    df = add_technical_features(df)
+    df = df.dropna(subset=feature_cols).reset_index(drop=True)
+    
+    col_map = {c.lower(): c for c in df.columns}
     close_col = col_map.get("close", "close")
-    date_col  = col_map.get("date",  "date")
-
-    df = add_technical_features(df.copy())
-    df = df.dropna(subset=features).reset_index(drop=True)
-
-    if len(df) < 2:
-        raise ValueError("Not enough data after ETL. Try a wider date range.")
-
-    predictions = pipeline.predict(df[features].values)
-
-    cash, shares = initial_cash, 0
-    records = []
-
-    for i in range(len(df) - 1):
-        price  = float(df[close_col].iloc[i])
-        pred   = int(predictions[i])
+    date_col = col_map.get("date", "date")
+    
+    results = []
+    cash = initial_cash
+    shares = 0
+    
+    for i in range(len(df)):
+        row = df.iloc[i]
+        X = row[feature_cols].values.reshape(1, -1)
+        pred = int(pipeline.predict(X)[0])
+        price = float(row[close_col])
+        
         action = "HOLD"
-
-        if pred == 1 and cash >= price:
+        
+        if pred == 1 and cash >= price:  # Rise → BUY
             shares += 1
-            cash   -= price
-            action  = "BUY"
-        elif pred == 0 and shares > 0:
-            cash  += shares * price
+            cash -= price
+            action = "BUY"
+        elif pred == 0 and shares > 0:   # Fall → SELL ALL
+            cash += shares * price
+            action = f"SELL {shares}"
             shares = 0
-            action = "SELL"
-
-        records.append({
-            "Date":            df[date_col].iloc[i],
-            "Close":           price,
-            "Prediction":      pred,
-            "Action":          action,
-            "Shares":          shares,
-            "Cash":            round(cash, 2),
-            "Portfolio Value": round(cash + shares * price, 2),
+        
+        portfolio_value = cash + shares * price
+        
+        results.append({
+            "Date": row[date_col],
+            "Close": price,
+            "Prediction": pred,
+            "Action": action,
+            "Shares": shares,
+            "Cash": cash,
+            "Portfolio Value": portfolio_value,
         })
-
-    # Liquidate at end
+    
+    # Final liquidation
     if shares > 0:
-        last_price = float(df[close_col].iloc[-1])
-        cash      += shares * last_price
-        records[-1]["Cash"]            = round(cash, 2)
-        records[-1]["Shares"]          = 0
-        records[-1]["Portfolio Value"] = round(cash, 2)
-        records[-1]["Action"]          = "SELL (final)"
-
-    results = pd.DataFrame(records)
-    results["Date"] = pd.to_datetime(results["Date"])
-    return results
+        final_price = float(df.iloc[-1][close_col])
+        cash += shares * final_price
+        results[-1]["Action"] = f"SELL {shares} (final)"
+        results[-1]["Shares"] = 0
+        results[-1]["Cash"] = cash
+        results[-1]["Portfolio Value"] = cash
+    
+    return pd.DataFrame(results)
 
 
-def run_backtest_multi(df: pd.DataFrame, pipeline, features: list, initial_cash: float) -> pd.DataFrame:
+def run_backtest_multi(df: pd.DataFrame, pipeline, feature_cols: list, initial_cash: float):
     """
     Multi-class strategy:
       0 (Big Fall)   → SELL ALL
@@ -229,124 +282,129 @@ def run_backtest_multi(df: pd.DataFrame, pipeline, features: list, initial_cash:
       2 (Small Rise) → BUY 1
       3 (Big Rise)   → BUY 2
     """
-    col_map   = {c.lower(): c for c in df.columns}
+    df = add_technical_features(df)
+    df = df.dropna(subset=feature_cols).reset_index(drop=True)
+    
+    col_map = {c.lower(): c for c in df.columns}
     close_col = col_map.get("close", "close")
-    date_col  = col_map.get("date",  "date")
-
-    df = add_technical_features(df.copy())
-    df = df.dropna(subset=features).reset_index(drop=True)
-
-    if len(df) < 2:
-        raise ValueError("Not enough data after ETL. Try a wider date range.")
-
-    predictions = pipeline.predict(df[features].values)
-    class_names = ["Big Fall", "Small Fall", "Small Rise", "Big Rise"]
-
-    cash, shares = initial_cash, 0
-    records = []
-
-    for i in range(len(df) - 1):
-        price  = float(df[close_col].iloc[i])
-        pred   = int(predictions[i])
+    date_col = col_map.get("date", "date")
+    
+    CLASS_NAMES = ["Big Fall", "Small Fall", "Small Rise", "Big Rise"]
+    
+    results = []
+    cash = initial_cash
+    shares = 0
+    
+    for i in range(len(df)):
+        row = df.iloc[i]
+        X = row[feature_cols].values.reshape(1, -1)
+        pred = int(pipeline.predict(X)[0])
+        price = float(row[close_col])
+        
         action = "HOLD"
-
-        if pred == 0:  # Big Fall → SELL ALL
-            if shares > 0:
-                cash  += shares * price
-                shares = 0
-                action = "SELL ALL"
-        elif pred == 1:  # Small Fall → HOLD
-            action = "HOLD"
-        elif pred == 2:  # Small Rise → BUY 1
-            if cash >= price:
-                shares += 1
-                cash   -= price
-                action  = "BUY 1"
-        elif pred == 3:  # Big Rise → BUY 2
-            buy_qty = min(2, int(cash // price))
-            if buy_qty > 0:
-                shares += buy_qty
-                cash   -= buy_qty * price
-                action  = f"BUY {buy_qty}"
-
-        records.append({
-            "Date":            df[date_col].iloc[i],
-            "Close":           price,
-            "Prediction":      pred,
-            "Pred Name":       class_names[pred],
-            "Action":          action,
-            "Shares":          shares,
-            "Cash":            round(cash, 2),
-            "Portfolio Value": round(cash + shares * price, 2),
+        
+        if pred == 0 and shares > 0:        # Big Fall → SELL ALL
+            cash += shares * price
+            action = f"SELL {shares}"
+            shares = 0
+        elif pred == 2 and cash >= price:   # Small Rise → BUY 1
+            shares += 1
+            cash -= price
+            action = "BUY 1"
+        elif pred == 3 and cash >= 2*price: # Big Rise → BUY 2
+            shares += 2
+            cash -= 2 * price
+            action = "BUY 2"
+        elif pred == 3 and cash >= price:   # Big Rise but only afford 1
+            shares += 1
+            cash -= price
+            action = "BUY 1"
+        
+        portfolio_value = cash + shares * price
+        
+        results.append({
+            "Date": row[date_col],
+            "Close": price,
+            "Prediction": pred,
+            "Pred Name": CLASS_NAMES[pred],
+            "Action": action,
+            "Shares": shares,
+            "Cash": cash,
+            "Portfolio Value": portfolio_value,
         })
-
-    # Liquidate at end
+    
+    # Final liquidation
     if shares > 0:
-        last_price = float(df[close_col].iloc[-1])
-        cash      += shares * last_price
-        records[-1]["Cash"]            = round(cash, 2)
-        records[-1]["Shares"]          = 0
-        records[-1]["Portfolio Value"] = round(cash, 2)
-        records[-1]["Action"]          = "SELL (final)"
-
-    results = pd.DataFrame(records)
-    results["Date"] = pd.to_datetime(results["Date"])
-    return results
+        final_price = float(df.iloc[-1][close_col])
+        cash += shares * final_price
+        results[-1]["Action"] = f"SELL {shares} (final)"
+        results[-1]["Shares"] = 0
+        results[-1]["Cash"] = cash
+        results[-1]["Portfolio Value"] = cash
+    
+    return pd.DataFrame(results)
 
 
 # ── Charts ─────────────────────────────────────────────────────────────────────
 
-def portfolio_chart(results, ticker, initial_cash, strategy_name="ML Strategy"):
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=results["Date"], y=results["Portfolio Value"],
-        mode="lines", name=strategy_name,
-        line=dict(color="#63b3ed", width=2.5),
-        fill="tozeroy", fillcolor="rgba(99,179,237,0.05)"))
-
-    # Buy/Sell markers
-    buys = results[results["Action"].str.contains("BUY", na=False) & ~results["Action"].str.contains("final", na=False)]
-    sells = results[results["Action"].str.contains("SELL", na=False)]
+def portfolio_chart(results: pd.DataFrame, ticker: str, initial_cash: float, strategy_name: str):
+    # Buy & hold line
+    first_price = float(results["Close"].iloc[0])
+    bah_shares = initial_cash / first_price
+    results["Buy & Hold"] = results["Close"] * bah_shares
     
-    fig.add_trace(go.Scatter(x=buys["Date"],  y=buys["Portfolio Value"],
-        mode="markers", name="BUY",  marker=dict(color="#10b981", size=8, symbol="triangle-up")))
-    fig.add_trace(go.Scatter(x=sells["Date"], y=sells["Portfolio Value"],
-        mode="markers", name="SELL", marker=dict(color="#ef4444", size=8, symbol="triangle-down")))
-
-    # Buy-and-hold baseline
-    shares_bah = initial_cash / float(results["Close"].iloc[0])
-    fig.add_trace(go.Scatter(x=results["Date"], y=results["Close"] * shares_bah,
-        mode="lines", name="Buy & Hold", line=dict(color="#94a3b8", width=1.5, dash="dot")))
-    fig.add_hline(y=initial_cash, line_dash="dash", line_color="rgba(255,255,255,0.12)",
-                  annotation_text="Starting capital", annotation_font_color="#64748b")
-
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=results["Date"], y=results["Portfolio Value"],
+        mode="lines", name=f"ML Strategy",
+        line=dict(color="#63b3ed", width=2),
+    ))
+    fig.add_trace(go.Scatter(
+        x=results["Date"], y=results["Buy & Hold"],
+        mode="lines", name="Buy & Hold",
+        line=dict(color="#94a3b8", width=2, dash="dot"),
+    ))
     fig.update_layout(
-        paper_bgcolor="#0a0e1a", plot_bgcolor="#111827",
-        font=dict(color="#94a3b8", family="Space Grotesk"),
-        title=dict(text=f"{ticker} — Portfolio vs Buy & Hold", font=dict(color="#e2e8f0", size=15)),
+        title=f"{ticker} — {strategy_name} vs Buy & Hold",
+        template="plotly_dark",
+        paper_bgcolor="#0a0e1a", plot_bgcolor="#0a0e1a",
         xaxis=dict(gridcolor="#1e293b"), yaxis=dict(gridcolor="#1e293b", tickprefix="$"),
         legend=dict(bgcolor="rgba(0,0,0,0)"),
-        margin=dict(l=0, r=0, t=40, b=0), height=400,
+        margin=dict(l=0, r=0, t=40, b=0), height=350,
     )
     return fig
 
 
-def price_signals_chart(results, ticker):
+def price_signals_chart(results: pd.DataFrame, ticker: str):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=results["Date"], y=results["Close"],
-        mode="lines", name="Close", line=dict(color="#63b3ed", width=1.8)))
     
+    # Price line
+    fig.add_trace(go.Scatter(
+        x=results["Date"], y=results["Close"],
+        mode="lines", name="Price",
+        line=dict(color="#e2e8f0", width=1.5),
+    ))
+    
+    # BUY signals
     buys = results[results["Action"].str.contains("BUY", na=False) & ~results["Action"].str.contains("final", na=False)]
-    sells = results[results["Action"].str.contains("SELL", na=False)]
+    fig.add_trace(go.Scatter(
+        x=buys["Date"], y=buys["Close"],
+        mode="markers", name="BUY",
+        marker=dict(color="#10b981", size=10, symbol="triangle-up"),
+    ))
     
-    fig.add_trace(go.Scatter(x=buys["Date"],  y=buys["Close"],
-        mode="markers", name="BUY",  marker=dict(color="#10b981", size=8, symbol="triangle-up")))
-    fig.add_trace(go.Scatter(x=sells["Date"], y=sells["Close"],
-        mode="markers", name="SELL", marker=dict(color="#ef4444", size=8, symbol="triangle-down")))
+    # SELL signals
+    sells = results[results["Action"].str.contains("SELL", na=False)]
+    fig.add_trace(go.Scatter(
+        x=sells["Date"], y=sells["Close"],
+        mode="markers", name="SELL",
+        marker=dict(color="#ef4444", size=10, symbol="triangle-down"),
+    ))
     
     fig.update_layout(
-        paper_bgcolor="#0a0e1a", plot_bgcolor="#111827",
-        font=dict(color="#94a3b8", family="Space Grotesk"),
-        title=dict(text=f"{ticker} — Price with Trade Signals", font=dict(color="#e2e8f0", size=15)),
+        title=f"{ticker} — Trade Signals",
+        template="plotly_dark",
+        paper_bgcolor="#0a0e1a", plot_bgcolor="#0a0e1a",
         xaxis=dict(gridcolor="#1e293b"), yaxis=dict(gridcolor="#1e293b", tickprefix="$"),
         legend=dict(bgcolor="rgba(0,0,0,0)"),
         margin=dict(l=0, r=0, t=40, b=0), height=350,
