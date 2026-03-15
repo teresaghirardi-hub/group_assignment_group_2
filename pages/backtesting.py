@@ -1,15 +1,17 @@
 """
-pages/backtesting.py — Backtesting Page (Part 1.3 + 2.2.3)
-============================================================
-Simulates a Buy-and-Sell trading strategy on historical data
-using the trained ML model's predictions.
+pages/backtesting.py — Backtesting Page
+========================================
+Simulates trading strategies using ML model predictions.
 
-Strategy:
-  Prediction = 1 (Rise) → BUY  1 share at today's close
-  Prediction = 0 (Fall) → SELL all shares at today's close
-  Final position liquidated at end of period.
+Binary Strategy:
+  Prediction = 1 (Rise) → BUY 1 share
+  Prediction = 0 (Fall) → SELL all shares
 
-ETL functions defined here directly — no separate etl.py import.
+Multi-Class Strategy:
+  0 (Big Fall)   → SELL ALL
+  1 (Small Fall) → HOLD
+  2 (Small Rise) → BUY 1 share
+  3 (Big Rise)   → BUY 2 shares
 """
 
 import os
@@ -64,57 +66,107 @@ with st.sidebar:
     st.markdown("---")
     run_btn = st.button("🔁 Run Backtest", use_container_width=True, type="primary")
 
-# ── ETL functions (identical to etl_nuria.ipynb and go_live.py) ───────────────
+
+# ── ETL functions (must match notebook exactly) ────────────────────────────────
 
 def add_technical_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute 8 technical features. Must match etl_nuria.ipynb exactly."""
-    df  = df.copy()
-    col = {c.lower(): c for c in df.columns}
+    """Compute 24 technical features. Must match etl.ipynb exactly."""
+    df = df.copy()
 
+    col = {c.lower(): c for c in df.columns}
     close  = df[col.get("close",  "close")]
     high   = df[col.get("high",   "high")]
     low    = df[col.get("low",    "low")]
     volume = df[col.get("volume", "volume")]
+    
+    date_col = col.get("date", "date")
+    df[date_col] = pd.to_datetime(df[date_col])
 
-    df["Returns"]       = np.log(close / close.shift(1))
-    df["SMA_5"]         = close.rolling(5).mean()
-    df["SMA_20"]        = close.rolling(20).mean()
-    df["Volatility_5"]  = df["Returns"].rolling(5).std()
-    df["Volatility_20"] = df["Returns"].rolling(20).std()
+    # Original 8
+    df["Returns"] = np.log(close / close.shift(1))
+    df["SMA_5"]  = close.rolling(window=5).mean()
+    df["SMA_20"] = close.rolling(window=20).mean()
+    df["Volatility_5"]  = df["Returns"].rolling(window=5).std()
+    df["Volatility_20"] = df["Returns"].rolling(window=20).std()
     df["Volume_Change"] = volume.pct_change()
 
-    delta = close.diff()
-    gain  = delta.clip(lower=0)
-    loss  = -delta.clip(upper=0)
-    rs    = gain.rolling(14).mean() / loss.rolling(14).mean()
-    df["RSI_14"]      = 100 - (100 / (1 + rs))
+    delta    = close.diff()
+    gain     = delta.clip(lower=0)
+    loss     = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+    rs       = avg_gain / avg_loss
+    df["RSI_14"] = 100 - (100 / (1 + rs))
     df["Price_Range"] = (high - low) / close
 
-    feature_cols = ["Returns","SMA_5","SMA_20","Volatility_5",
-                    "Volatility_20","Volume_Change","RSI_14","Price_Range"]
-    return df.dropna(subset=feature_cols).reset_index(drop=True)
+    # MACD
+    ema_12 = close.ewm(span=12, adjust=False).mean()
+    ema_26 = close.ewm(span=26, adjust=False).mean()
+    df["MACD"] = ema_12 - ema_26
+    df["MACD_Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
+    df["MACD_Hist"] = df["MACD"] - df["MACD_Signal"]
+
+    # Bollinger Bands
+    sma_20 = close.rolling(20).mean()
+    std_20 = close.rolling(20).std()
+    bb_upper = sma_20 + 2 * std_20
+    bb_lower = sma_20 - 2 * std_20
+    df["BB_Width"] = (bb_upper - bb_lower) / sma_20
+    df["BB_Position"] = (close - bb_lower) / (bb_upper - bb_lower)
+
+    # Momentum
+    df["Momentum_10"] = close / close.shift(10) - 1
+    df["Momentum_20"] = close / close.shift(20) - 1
+
+    # ATR Ratio
+    tr = pd.concat([
+        high - low,
+        (high - close.shift(1)).abs(),
+        (low - close.shift(1)).abs()
+    ], axis=1).max(axis=1)
+    atr_14 = tr.rolling(14).mean()
+    df["ATR_Ratio"] = atr_14 / close
+
+    # Lagged Returns
+    df["Return_Lag1"] = df["Returns"].shift(1)
+    df["Return_Lag2"] = df["Returns"].shift(2)
+    df["Return_Lag3"] = df["Returns"].shift(3)
+    df["Return_Lag5"] = df["Returns"].shift(5)
+
+    # Volume Ratio
+    df["Volume_Ratio"] = volume / volume.rolling(20).mean()
+
+    # Day of Week
+    df["DayOfWeek"] = df[date_col].dt.dayofweek
+
+    # Distance from SMAs
+    df["Dist_SMA_5"] = (close - df["SMA_5"]) / df["SMA_5"]
+    df["Dist_SMA_20"] = (close - df["SMA_20"]) / df["SMA_20"]
+
+    return df
+
 
 # ── Model loader ───────────────────────────────────────────────────────────────
 MODELS_DIR = Path(__file__).parent.parent / "models"
 
+
 @st.cache_resource
-def load_model(ticker: str):
-    model_path    = MODELS_DIR / f"model_{ticker}.joblib"
-    features_path = MODELS_DIR / f"features_{ticker}.txt"
+def load_model(ticker: str, model_type: str):
+    model_path = MODELS_DIR / f"model_{ticker}_{model_type}.joblib"
+    features_path = MODELS_DIR / f"features_{ticker}_{model_type}.txt"
     if not model_path.exists():
-        raise FileNotFoundError(
-            f"Model not found: {model_path}\nRun etl_nuria.ipynb first."
-        )
+        raise FileNotFoundError(f"Model not found: {model_path}")
     pipeline = joblib.load(model_path)
     with open(features_path) as f:
         features = [line.strip() for line in f if line.strip()]
     return pipeline, features
 
-# ── Backtest simulation ────────────────────────────────────────────────────────
-def run_backtest(df: pd.DataFrame, pipeline, features: list, initial_cash: float) -> pd.DataFrame:
+
+# ── Backtest simulations ───────────────────────────────────────────────────────
+
+def run_backtest_binary(df: pd.DataFrame, pipeline, features: list, initial_cash: float) -> pd.DataFrame:
     """
-    Simulate Buy-and-Sell strategy over historical data.
-    prediction=1 → BUY 1 share | prediction=0 → SELL all shares.
+    Binary strategy: prediction=1 → BUY 1 share | prediction=0 → SELL all shares.
     """
     col_map   = {c.lower(): c for c in df.columns}
     close_col = col_map.get("close", "close")
@@ -126,17 +178,14 @@ def run_backtest(df: pd.DataFrame, pipeline, features: list, initial_cash: float
     if len(df) < 2:
         raise ValueError("Not enough data after ETL. Try a wider date range.")
 
-    predictions   = pipeline.predict(df[features].values)
-    probabilities = pipeline.predict_proba(df[features].values)[:, 1]
+    predictions = pipeline.predict(df[features].values)
 
-    cash    = initial_cash
-    shares  = 0
+    cash, shares = initial_cash, 0
     records = []
 
     for i in range(len(df) - 1):
         price  = float(df[close_col].iloc[i])
         pred   = int(predictions[i])
-        prob   = float(probabilities[i])
         action = "HOLD"
 
         if pred == 1 and cash >= price:
@@ -152,14 +201,13 @@ def run_backtest(df: pd.DataFrame, pipeline, features: list, initial_cash: float
             "Date":            df[date_col].iloc[i],
             "Close":           price,
             "Prediction":      pred,
-            "Probability":     round(prob, 4),
             "Action":          action,
             "Shares":          shares,
             "Cash":            round(cash, 2),
             "Portfolio Value": round(cash + shares * price, 2),
         })
 
-    # Liquidate remaining position at last price
+    # Liquidate at end
     if shares > 0:
         last_price = float(df[close_col].iloc[-1])
         cash      += shares * last_price
@@ -172,16 +220,93 @@ def run_backtest(df: pd.DataFrame, pipeline, features: list, initial_cash: float
     results["Date"] = pd.to_datetime(results["Date"])
     return results
 
+
+def run_backtest_multi(df: pd.DataFrame, pipeline, features: list, initial_cash: float) -> pd.DataFrame:
+    """
+    Multi-class strategy:
+      0 (Big Fall)   → SELL ALL
+      1 (Small Fall) → HOLD
+      2 (Small Rise) → BUY 1
+      3 (Big Rise)   → BUY 2
+    """
+    col_map   = {c.lower(): c for c in df.columns}
+    close_col = col_map.get("close", "close")
+    date_col  = col_map.get("date",  "date")
+
+    df = add_technical_features(df.copy())
+    df = df.dropna(subset=features).reset_index(drop=True)
+
+    if len(df) < 2:
+        raise ValueError("Not enough data after ETL. Try a wider date range.")
+
+    predictions = pipeline.predict(df[features].values)
+    class_names = ["Big Fall", "Small Fall", "Small Rise", "Big Rise"]
+
+    cash, shares = initial_cash, 0
+    records = []
+
+    for i in range(len(df) - 1):
+        price  = float(df[close_col].iloc[i])
+        pred   = int(predictions[i])
+        action = "HOLD"
+
+        if pred == 0:  # Big Fall → SELL ALL
+            if shares > 0:
+                cash  += shares * price
+                shares = 0
+                action = "SELL ALL"
+        elif pred == 1:  # Small Fall → HOLD
+            action = "HOLD"
+        elif pred == 2:  # Small Rise → BUY 1
+            if cash >= price:
+                shares += 1
+                cash   -= price
+                action  = "BUY 1"
+        elif pred == 3:  # Big Rise → BUY 2
+            buy_qty = min(2, int(cash // price))
+            if buy_qty > 0:
+                shares += buy_qty
+                cash   -= buy_qty * price
+                action  = f"BUY {buy_qty}"
+
+        records.append({
+            "Date":            df[date_col].iloc[i],
+            "Close":           price,
+            "Prediction":      pred,
+            "Pred Name":       class_names[pred],
+            "Action":          action,
+            "Shares":          shares,
+            "Cash":            round(cash, 2),
+            "Portfolio Value": round(cash + shares * price, 2),
+        })
+
+    # Liquidate at end
+    if shares > 0:
+        last_price = float(df[close_col].iloc[-1])
+        cash      += shares * last_price
+        records[-1]["Cash"]            = round(cash, 2)
+        records[-1]["Shares"]          = 0
+        records[-1]["Portfolio Value"] = round(cash, 2)
+        records[-1]["Action"]          = "SELL (final)"
+
+    results = pd.DataFrame(records)
+    results["Date"] = pd.to_datetime(results["Date"])
+    return results
+
+
 # ── Charts ─────────────────────────────────────────────────────────────────────
-def portfolio_chart(results, ticker, initial_cash):
+
+def portfolio_chart(results, ticker, initial_cash, strategy_name="ML Strategy"):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=results["Date"], y=results["Portfolio Value"],
-        mode="lines", name="ML Strategy",
+        mode="lines", name=strategy_name,
         line=dict(color="#63b3ed", width=2.5),
         fill="tozeroy", fillcolor="rgba(99,179,237,0.05)"))
 
-    buys  = results[results["Action"] == "BUY"]
-    sells = results[results["Action"].isin(["SELL","SELL (final)"])]
+    # Buy/Sell markers
+    buys = results[results["Action"].str.contains("BUY", na=False) & ~results["Action"].str.contains("final", na=False)]
+    sells = results[results["Action"].str.contains("SELL", na=False)]
+    
     fig.add_trace(go.Scatter(x=buys["Date"],  y=buys["Portfolio Value"],
         mode="markers", name="BUY",  marker=dict(color="#10b981", size=8, symbol="triangle-up")))
     fig.add_trace(go.Scatter(x=sells["Date"], y=sells["Portfolio Value"],
@@ -204,16 +329,20 @@ def portfolio_chart(results, ticker, initial_cash):
     )
     return fig
 
+
 def price_signals_chart(results, ticker):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=results["Date"], y=results["Close"],
         mode="lines", name="Close", line=dict(color="#63b3ed", width=1.8)))
-    buys  = results[results["Action"] == "BUY"]
-    sells = results[results["Action"].isin(["SELL","SELL (final)"])]
+    
+    buys = results[results["Action"].str.contains("BUY", na=False) & ~results["Action"].str.contains("final", na=False)]
+    sells = results[results["Action"].str.contains("SELL", na=False)]
+    
     fig.add_trace(go.Scatter(x=buys["Date"],  y=buys["Close"],
         mode="markers", name="BUY",  marker=dict(color="#10b981", size=8, symbol="triangle-up")))
     fig.add_trace(go.Scatter(x=sells["Date"], y=sells["Close"],
         mode="markers", name="SELL", marker=dict(color="#ef4444", size=8, symbol="triangle-down")))
+    
     fig.update_layout(
         paper_bgcolor="#0a0e1a", plot_bgcolor="#111827",
         font=dict(color="#94a3b8", family="Space Grotesk"),
@@ -224,12 +353,52 @@ def price_signals_chart(results, ticker):
     )
     return fig
 
+
+def display_kpis(results, initial_cash):
+    final_value  = float(results["Portfolio Value"].iloc[-1])
+    pct_return   = ((final_value - initial_cash) / initial_cash) * 100
+    first_price  = float(results["Close"].iloc[0])
+    last_price   = float(results["Close"].iloc[-1])
+    bah_return   = (((initial_cash / first_price * last_price) - initial_cash) / initial_cash) * 100
+    n_buys       = results["Action"].str.contains("BUY", na=False).sum() - results["Action"].str.contains("final", na=False).sum()
+    n_sells      = results["Action"].str.contains("SELL", na=False).sum()
+
+    k1,k2,k3,k4,k5,k6 = st.columns(6)
+    for col, val, lbl, color in zip(
+        [k1,k2,k3,k4,k5,k6],
+        [f"${final_value:,.0f}", f"{'+' if pct_return>=0 else ''}{pct_return:.1f}%",
+         f"{'+' if bah_return>=0 else ''}{bah_return:.1f}%",
+         str(max(0, n_buys)), str(n_sells), f"${initial_cash:,.0f}"],
+        ["Final Value","ML Return","Buy & Hold","BUY signals","SELL signals","Starting Capital"],
+        ["#63b3ed",
+         "#10b981" if pct_return>=0 else "#ef4444",
+         "#10b981" if bah_return>=0 else "#ef4444",
+         "#10b981","#ef4444","#94a3b8"],
+    ):
+        col.markdown(f'<div class="kpi"><div class="kpi-val" style="color:{color};">{val}</div><div class="kpi-lbl">{lbl}</div></div>', unsafe_allow_html=True)
+
+    # Return comparison
+    outperform = pct_return - bah_return
+    if outperform > 0:
+        st.success(f"✅ ML Strategy **outperformed** Buy & Hold by **{outperform:.1f}%**")
+    elif outperform < 0:
+        st.warning(f"⚠️ ML Strategy **underperformed** Buy & Hold by **{abs(outperform):.1f}%**")
+    else:
+        st.info("ML Strategy matched Buy & Hold performance")
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 st.markdown("## 🔁 Backtesting")
 st.markdown('<p style="color:#64748b;margin-top:-8px;">Simulate how the model would have performed on historical data.</p>', unsafe_allow_html=True)
-st.markdown('<div class="info"><strong>Strategy: Buy-and-Sell</strong> — Rise predicted → BUY 1 share at close. Fall predicted → SELL all shares at close. Compared against Buy-and-Hold baseline.</div>', unsafe_allow_html=True)
 
 if not run_btn:
+    st.markdown('''
+    <div class="info">
+        <strong>Two strategies available:</strong><br>
+        • <strong>Binary:</strong> BUY on Rise prediction, SELL on Fall prediction<br>
+        • <strong>Multi-Class:</strong> Position sizing based on prediction confidence (Big/Small movements)
+    </div>
+    ''', unsafe_allow_html=True)
     st.info("👈 Configure settings and click **Run Backtest**.")
     st.stop()
 
@@ -241,14 +410,7 @@ if start_date >= end_date:
     st.error("Start date must be before end date.")
     st.stop()
 
-# Load model
-try:
-    pipeline, model_features = load_model(ticker)
-except FileNotFoundError as e:
-    st.error(str(e))
-    st.stop()
-
-# Fetch data (extra 60-day buffer for rolling window warm-up)
+# Fetch data (extra buffer for rolling windows)
 fetch_start = (start_date - timedelta(days=60)).strftime("%Y-%m-%d")
 fetch_end   = end_date.strftime("%Y-%m-%d")
 
@@ -256,9 +418,6 @@ with st.spinner(f"Fetching {ticker} historical data…"):
     try:
         client = PySimFin(api_key=api_key)
         df_raw = client.get_share_prices(ticker, start=fetch_start, end=fetch_end)
-        st.write(df_raw.columns.tolist())
-        st.write(df_raw.head(2))
-        st.stop()
     except SimFinRateLimitError:
         st.error("Rate limit hit. Wait a moment and retry.")
         st.stop()
@@ -273,60 +432,112 @@ if df_raw.empty:
     st.error("No data returned.")
     st.stop()
 
-df_raw.columns = df_raw.columns.str.lower() 
+df_raw.columns = df_raw.columns.str.lower()
 
-# Run backtest
-try:
-    with st.spinner("Running simulation…"):
-        results = run_backtest(df_raw, pipeline, model_features, float(initial_cash))
-except ValueError as e:
-    st.error(str(e))
-    st.stop()
+# ── TABS: Binary vs Multi-Class ────────────────────────────────────────────────
+tab_binary, tab_multi = st.tabs(["📊 Binary Strategy", "📊 Multi-Class Strategy"])
 
-# Trim to requested date range
-results = results[results["Date"] >= pd.to_datetime(start_date)].reset_index(drop=True)
-if results.empty:
-    st.error("No results in selected range after ETL. Try wider dates.")
-    st.stop()
+# ── Binary Tab ─────────────────────────────────────────────────────────────────
+with tab_binary:
+    st.markdown('''
+    <div class="info">
+        <strong>Binary Strategy:</strong> Rise predicted → BUY 1 share | Fall predicted → SELL all shares
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    try:
+        pipeline_binary, features_binary = load_model(ticker, "binary")
+        
+        with st.spinner("Running binary simulation…"):
+            results_binary = run_backtest_binary(df_raw.copy(), pipeline_binary, features_binary, float(initial_cash))
+        
+        # Trim to requested date range
+        results_binary = results_binary[results_binary["Date"] >= pd.to_datetime(start_date)].reset_index(drop=True)
+        
+        if results_binary.empty:
+            st.error("No results in selected range after ETL. Try wider dates.")
+        else:
+            st.markdown('<p class="sec">Summary</p>', unsafe_allow_html=True)
+            display_kpis(results_binary, initial_cash)
+            
+            st.markdown('<p class="sec">Portfolio Performance</p>', unsafe_allow_html=True)
+            st.plotly_chart(portfolio_chart(results_binary, ticker, initial_cash, "Binary Strategy"), use_container_width=True)
+            
+            st.markdown('<p class="sec">Trade Signals</p>', unsafe_allow_html=True)
+            st.plotly_chart(price_signals_chart(results_binary, ticker), use_container_width=True)
+            
+            st.markdown('<p class="sec">Trade Log</p>', unsafe_allow_html=True)
+            trade_log = results_binary[results_binary["Action"] != "HOLD"][
+                ["Date","Close","Action","Shares","Cash","Portfolio Value"]
+            ].copy()
+            trade_log["Date"] = trade_log["Date"].dt.strftime("%Y-%m-%d")
+            st.dataframe(trade_log, use_container_width=True, height=280)
+            
+    except FileNotFoundError as e:
+        st.error(str(e))
+    except ValueError as e:
+        st.error(str(e))
 
-# KPIs
-final_value  = float(results["Portfolio Value"].iloc[-1])
-pct_return   = ((final_value - initial_cash) / initial_cash) * 100
-first_price  = float(results["Close"].iloc[0])
-last_price   = float(results["Close"].iloc[-1])
-bah_return   = (((initial_cash / first_price * last_price) - initial_cash) / initial_cash) * 100
-n_buys       = (results["Action"] == "BUY").sum()
-n_sells      = results["Action"].isin(["SELL","SELL (final)"]).sum()
+# ── Multi-Class Tab ────────────────────────────────────────────────────────────
+with tab_multi:
+    st.markdown('''
+    <div class="info">
+        <strong>Multi-Class Strategy:</strong><br>
+        • Big Fall (0) → SELL ALL<br>
+        • Small Fall (1) → HOLD<br>
+        • Small Rise (2) → BUY 1 share<br>
+        • Big Rise (3) → BUY 2 shares
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    try:
+        pipeline_multi, features_multi = load_model(ticker, "multi")
+        
+        with st.spinner("Running multi-class simulation…"):
+            results_multi = run_backtest_multi(df_raw.copy(), pipeline_multi, features_multi, float(initial_cash))
+        
+        # Trim to requested date range
+        results_multi = results_multi[results_multi["Date"] >= pd.to_datetime(start_date)].reset_index(drop=True)
+        
+        if results_multi.empty:
+            st.error("No results in selected range after ETL. Try wider dates.")
+        else:
+            st.markdown('<p class="sec">Summary</p>', unsafe_allow_html=True)
+            display_kpis(results_multi, initial_cash)
+            
+            st.markdown('<p class="sec">Portfolio Performance</p>', unsafe_allow_html=True)
+            st.plotly_chart(portfolio_chart(results_multi, ticker, initial_cash, "Multi-Class Strategy"), use_container_width=True)
+            
+            st.markdown('<p class="sec">Trade Signals</p>', unsafe_allow_html=True)
+            st.plotly_chart(price_signals_chart(results_multi, ticker), use_container_width=True)
+            
+            # Prediction distribution
+            st.markdown('<p class="sec">Prediction Distribution</p>', unsafe_allow_html=True)
+            pred_counts = results_multi["Pred Name"].value_counts()
+            c1, c2, c3, c4 = st.columns(4)
+            class_colors = {"Big Fall": "#ef4444", "Small Fall": "#f97316", "Small Rise": "#22c55e", "Big Rise": "#10b981"}
+            for col, name in zip([c1,c2,c3,c4], ["Big Fall", "Small Fall", "Small Rise", "Big Rise"]):
+                count = pred_counts.get(name, 0)
+                pct = (count / len(results_multi)) * 100
+                col.markdown(f'''
+                <div class="kpi">
+                    <div class="kpi-val" style="color:{class_colors[name]};">{count}</div>
+                    <div class="kpi-lbl">{name} ({pct:.1f}%)</div>
+                </div>
+                ''', unsafe_allow_html=True)
+            
+            st.markdown('<p class="sec">Trade Log</p>', unsafe_allow_html=True)
+            trade_log = results_multi[results_multi["Action"] != "HOLD"][
+                ["Date","Close","Pred Name","Action","Shares","Cash","Portfolio Value"]
+            ].copy()
+            trade_log["Date"] = trade_log["Date"].dt.strftime("%Y-%m-%d")
+            st.dataframe(trade_log, use_container_width=True, height=280)
+            
+    except FileNotFoundError as e:
+        st.error(str(e))
+    except ValueError as e:
+        st.error(str(e))
 
-st.markdown('<p class="sec">Summary</p>', unsafe_allow_html=True)
-k1,k2,k3,k4,k5,k6 = st.columns(6)
-for col, val, lbl, color in zip(
-    [k1,k2,k3,k4,k5,k6],
-    [f"${final_value:,.0f}", f"{'+' if pct_return>=0 else ''}{pct_return:.1f}%",
-     f"{'+' if bah_return>=0 else ''}{bah_return:.1f}%",
-     str(n_buys), str(n_sells), f"${initial_cash:,.0f}"],
-    ["Final Value","ML Return","Buy & Hold","BUY signals","SELL signals","Starting Capital"],
-    ["#63b3ed",
-     "#10b981" if pct_return>=0 else "#ef4444",
-     "#10b981" if bah_return>=0 else "#ef4444",
-     "#10b981","#ef4444","#94a3b8"],
-):
-    col.markdown(f'<div class="kpi"><div class="kpi-val" style="color:{color};">{val}</div><div class="kpi-lbl">{lbl}</div></div>', unsafe_allow_html=True)
-
-st.markdown('<p class="sec">Portfolio Performance</p>', unsafe_allow_html=True)
-st.plotly_chart(portfolio_chart(results, ticker, initial_cash), use_container_width=True)
-
-st.markdown('<p class="sec">Trade Signals on Price Chart</p>', unsafe_allow_html=True)
-st.plotly_chart(price_signals_chart(results, ticker), use_container_width=True)
-
-st.markdown('<p class="sec">Trade Log</p>', unsafe_allow_html=True)
-trade_log = results[results["Action"] != "HOLD"][
-    ["Date","Close","Action","Shares","Cash","Portfolio Value","Probability"]
-].copy()
-trade_log["Date"] = trade_log["Date"].dt.strftime("%Y-%m-%d")
-st.dataframe(trade_log, use_container_width=True, height=280)
-
+# Full data expander
 with st.expander("📋 Full daily results"):
-    full = results.copy()
-    full["Date"] = full["Date"].dt.strftime("%Y-%m-%d")
-    st.dataframe(full, use_container_width=True)
+    st.info("Select a tab above to see the full results for that strategy.")
