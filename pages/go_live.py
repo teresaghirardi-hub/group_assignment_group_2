@@ -6,6 +6,7 @@ loads both binary and multi-class models, and shows predictions.
 """
 
 import sys
+import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
@@ -35,7 +36,18 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif; }
 .stApp { background: #0a0e1a; color: #e2e8f0; }
-section[data-testid="stSidebar"] { background: #0d1117; border-right: 1px solid rgba(255,255,255,0.06); }
+
+/* Lighter sidebar so text is readable */
+section[data-testid="stSidebar"] {
+    background: #1a2744;
+    border-right: 1px solid rgba(255,255,255,0.10);
+}
+section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+section[data-testid="stSidebar"] a:hover { color: #63b3ed !important; }
+
+/* Hide auto-generated Streamlit nav (we use our own) */
+[data-testid="stSidebarNavItems"] { display: none; }
+
 .stat { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 16px; text-align: center; }
 .stat-val { font-size: 1.4rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #63b3ed; }
 .stat-lbl { font-size: 0.78rem; color: #64748b; margin-top: 4px; }
@@ -43,6 +55,9 @@ section[data-testid="stSidebar"] { background: #0d1117; border-right: 1px solid 
 .info { background: rgba(99,179,237,0.06); border: 1px solid rgba(99,179,237,0.2); border-radius: 8px; padding: 10px 14px; font-size: 0.87rem; color: #94a3b8; }
 .prob-bar { background: #1e293b; border-radius: 4px; height: 8px; margin-top: 4px; overflow: hidden; }
 .prob-fill { height: 100%; border-radius: 4px; }
+.kpi-box { background: #111827; border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 14px 16px; }
+.kpi-label { font-size: 0.75rem; color: #64748b; margin-bottom: 4px; }
+.kpi-value { font-size: 1.05rem; font-weight: 600; color: #e2e8f0; font-family: 'JetBrains Mono', monospace; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -62,11 +77,9 @@ with st.sidebar:
 
 
 # ── Candlestick chart ──────────────────────────────────────────────────────────
-
 def candlestick_chart(df: pd.DataFrame, ticker: str):
     col_map  = {c.lower(): c for c in df.columns}
     date_col = col_map.get("date", "date")
-
     fig = go.Figure(data=[go.Candlestick(
         x=df[date_col],
         open=df[col_map.get("open",   "open")],
@@ -88,10 +101,9 @@ def candlestick_chart(df: pd.DataFrame, ticker: str):
     return fig
 
 
-# ── Display prediction ─────────────────────────────────────────────────────────
-
-def display_prediction(pipeline, X_latest, model_type: str, ticker: str):
-    """Show prediction results with confidence and probability bars."""
+# ── Prediction card ────────────────────────────────────────────────────────────
+def display_prediction(pipeline, X_latest, model_type: str):
+    """Render the prediction result box + probability bars."""
     if model_type == "binary":
         class_names   = CLASS_NAMES_BINARY
         class_colors  = CLASS_COLORS_BINARY
@@ -112,28 +124,22 @@ def display_prediction(pipeline, X_latest, model_type: str, ticker: str):
     pred_name  = class_names[prediction]
     action     = class_actions[prediction]
 
-    # Prediction box
+    # Main prediction box
     st.markdown(f'''
     <div style="background: linear-gradient(135deg, {pred_color}20, {pred_color}08);
-                border: 2px solid {pred_color}; border-radius: 14px; padding: 28px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 6px;">{pred_icon}</div>
-        <div style="font-size: 1.8rem; font-weight: 700; color: {pred_color};">{pred_name.upper()}</div>
-        <div style="color: #94a3b8; font-size: 0.9rem; margin-top: 6px;">Confidence: {confidence:.1f}%</div>
-    </div>
-    ''', unsafe_allow_html=True)
-
-    # Trading signal
-    st.markdown('<p class="sec">Trading Signal</p>', unsafe_allow_html=True)
-    st.markdown(f'''
-    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 10px; padding: 18px; text-align: center;">
-        <div style="font-size: 2.2rem; font-weight: 700; color: {pred_color};
-                    font-family: 'JetBrains Mono', monospace;">{action}</div>
+                border: 2px solid {pred_color}; border-radius: 14px; padding: 24px; text-align: center;">
+        <div style="font-size: 2.8rem; margin-bottom: 4px;">{pred_icon}</div>
+        <div style="font-size: 1.6rem; font-weight: 700; color: {pred_color};">{pred_name.upper()}</div>
+        <div style="font-size: 2rem; font-weight: 700; color: {pred_color};
+                    font-family: 'JetBrains Mono', monospace; margin-top: 6px;">{action}</div>
+        <div style="color: #94a3b8; font-size: 0.88rem; margin-top: 8px;">
+            Confidence: <strong style="color:{pred_color};">{confidence:.1f}%</strong>
+        </div>
     </div>
     ''', unsafe_allow_html=True)
 
     # Probability bars
-    st.markdown('<p class="sec">Class Probabilities</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sec" style="margin-top:16px;">Class Probabilities</p>', unsafe_allow_html=True)
     for i, (name, prob) in enumerate(zip(class_names, probabilities)):
         pct   = prob * 100
         color = class_colors[i]
@@ -149,23 +155,101 @@ def display_prediction(pipeline, X_latest, model_type: str, ticker: str):
         </div>
         ''', unsafe_allow_html=True)
 
+    return prediction, probabilities, confidence
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+
+# ── Model statistics ───────────────────────────────────────────────────────────
+def render_model_stats(pipeline, feature_cols: list, model_type: str):
+    """Show classifier name, feature count, and top feature importances."""
+    # Dig out the final estimator from the pipeline
+    estimator = None
+    if hasattr(pipeline, "named_steps"):
+        steps = list(pipeline.named_steps.values())
+        estimator = steps[-1]
+    elif hasattr(pipeline, "steps"):
+        estimator = pipeline.steps[-1][1]
+    else:
+        estimator = pipeline
+
+    model_name = type(estimator).__name__
+    n_features = len(feature_cols)
+
+    k1, k2 = st.columns(2)
+    k1.markdown(f'<div class="kpi-box"><div class="kpi-label">Classifier</div>'
+                f'<div class="kpi-value">{model_name}</div></div>', unsafe_allow_html=True)
+    k2.markdown(f'<div class="kpi-box"><div class="kpi-label">Features used</div>'
+                f'<div class="kpi-value">{n_features}</div></div>', unsafe_allow_html=True)
+
+    # Feature importances (tree-based models)
+    feat_names = list(feature_cols)  # ensure plain list for slicing
+    if hasattr(estimator, "feature_importances_"):
+        importances = list(estimator.feature_importances_)
+        # Handle length mismatch gracefully
+        min_len = min(len(importances), len(feat_names))
+        imp_series = pd.Series(importances[:min_len], index=feat_names[:min_len])
+        top = imp_series.nlargest(10).sort_values()
+
+        fig = go.Figure(go.Bar(
+            x=top.values,
+            y=top.index,
+            orientation="h",
+            marker_color="#63b3ed",
+        ))
+        fig.update_layout(
+            title="Top 10 Feature Importances",
+            template="plotly_dark",
+            paper_bgcolor="#111827",
+            plot_bgcolor="#111827",
+            xaxis=dict(gridcolor="#1e293b", title="Importance"),
+            yaxis=dict(gridcolor="#1e293b"),
+            margin=dict(l=0, r=0, t=36, b=0),
+            height=280,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    elif hasattr(estimator, "coef_"):
+        # Logistic Regression — use absolute coefficient magnitude
+        coef = np.abs(estimator.coef_[0]) if estimator.coef_.ndim > 1 else np.abs(estimator.coef_)
+        min_len = min(len(coef), len(feature_cols))
+        imp_series = pd.Series(coef[:min_len], index=feature_cols[:min_len])
+        top = imp_series.nlargest(10).sort_values()
+
+        fig = go.Figure(go.Bar(
+            x=top.values,
+            y=top.index,
+            orientation="h",
+            marker_color="#a78bfa",
+        ))
+        fig.update_layout(
+            title="Top 10 Features (|Coefficient|)",
+            template="plotly_dark",
+            paper_bgcolor="#111827",
+            plot_bgcolor="#111827",
+            xaxis=dict(gridcolor="#1e293b", title="|Coefficient|"),
+            yaxis=dict(gridcolor="#1e293b"),
+            margin=dict(l=0, r=0, t=36, b=0),
+            height=280,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.markdown('<div class="info">Feature importance not available for this model type.</div>',
+                    unsafe_allow_html=True)
+
+
+# ── Page header ────────────────────────────────────────────────────────────────
 st.markdown("## ⚡ Go Live")
-st.markdown('<p style="color:#64748b;margin-top:-8px;">Real-time predictions powered by live SimFin data.</p>', unsafe_allow_html=True)
+st.markdown('<p style="color:#64748b;margin-top:-8px;">Real-time predictions powered by live SimFin data.</p>',
+            unsafe_allow_html=True)
 
 if not run_btn:
     st.markdown('''
     <div class="info">
-        👈 Select a ticker and click <strong>Get Prediction</strong>.
+        👈 Select a ticker and click <strong>Get Prediction</strong> to fetch live data and run the models.
     </div>
     ''', unsafe_allow_html=True)
     st.stop()
 
-# Resolve API key from secrets / environment (stops with error if missing)
-api_key = get_api_key()
-
-# Fetch data from SimFin
+# ── Fetch data ─────────────────────────────────────────────────────────────────
+api_key    = get_api_key()
 end_date   = date.today().strftime("%Y-%m-%d")
 start_date = (date.today() - timedelta(days=days_history + 60)).strftime("%Y-%m-%d")
 
@@ -188,31 +272,82 @@ if df_raw.empty:
     st.error("No data returned. Check ticker and date range.")
     st.stop()
 
-# ── Display chart ──────────────────────────────────────────────────────────────
 col_map    = {c.lower(): c for c in df_raw.columns}
 close_col  = col_map.get("close",  "close")
 open_col   = col_map.get("open",   "open")
 volume_col = col_map.get("volume", "volume")
 date_col   = col_map.get("date",   "date")
 
-df_chart = df_raw.copy()
-df_chart[date_col] = pd.to_datetime(df_chart[date_col])
-df_chart = df_chart.tail(days_history)
-
-st.plotly_chart(candlestick_chart(df_chart, ticker), use_container_width=True)
-
-# ── Price stats ────────────────────────────────────────────────────────────────
 latest     = df_raw.iloc[-1]
 prev       = df_raw.iloc[-2]
 last_close = float(latest[close_col])
 day_change = last_close - float(prev[close_col])
 day_pct    = (day_change / float(prev[close_col])) * 100
+arrow      = "▲" if day_change >= 0 else "▼"
+c_col      = "#10b981" if day_change >= 0 else "#ef4444"
+pred_date  = (date.today() + timedelta(days=1)).strftime("%A, %d %B %Y")
 
-st.markdown('<p class="sec">Latest Data</p>', unsafe_allow_html=True)
+# ── Load models ────────────────────────────────────────────────────────────────
+binary_ok, multi_ok = True, True
+pipeline_binary = features_binary = X_latest_binary = None
+pipeline_multi  = features_multi  = X_latest_multi  = None
+
+try:
+    pipeline_binary, features_binary = load_model(ticker, "binary")
+    X_live_binary   = prepare_for_prediction(df_raw.copy(), features_binary)
+    X_latest_binary = X_live_binary.iloc[[-1]] if not X_live_binary.empty else None
+except (FileNotFoundError, ValueError) as e:
+    binary_ok = False
+    st.warning(f"Binary model unavailable: {e}")
+
+try:
+    pipeline_multi, features_multi = load_model(ticker, "multi")
+    X_live_multi   = prepare_for_prediction(df_raw.copy(), features_multi)
+    X_latest_multi = X_live_multi.iloc[[-1]] if not X_live_multi.empty else None
+except (FileNotFoundError, ValueError) as e:
+    multi_ok = False
+    st.warning(f"Multi-class model unavailable: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 1 — PREDICTIONS (top of page)
+# ══════════════════════════════════════════════════════════════════════════════
+st.markdown('<p class="sec">Predictions for ' + pred_date + '</p>', unsafe_allow_html=True)
+st.markdown(f'<div class="info" style="margin-bottom:14px;">Based on data up to: <strong>{latest[date_col]}</strong></div>',
+            unsafe_allow_html=True)
+
+pred_col_b, pred_col_m = st.columns(2)
+
+with pred_col_b:
+    st.markdown("##### Binary Model — Rise / Fall")
+    if binary_ok and X_latest_binary is not None:
+        display_prediction(pipeline_binary, X_latest_binary, "binary")
+    else:
+        st.error("Binary model unavailable.")
+
+with pred_col_m:
+    st.markdown("##### Multi-Class Model — 4 Classes")
+    if multi_ok and X_latest_multi is not None:
+        display_prediction(pipeline_multi, X_latest_multi, "multi")
+        st.markdown('''
+        <div class="info" style="margin-top:10px;font-size:0.82rem;">
+            <strong>Class thresholds:</strong>&nbsp;
+            Big Fall &lt; −1% &nbsp;|&nbsp; Small Fall −1%→0% &nbsp;|&nbsp; Small Rise 0%→+1% &nbsp;|&nbsp; Big Rise ≥ +1%
+        </div>
+        ''', unsafe_allow_html=True)
+    else:
+        st.error("Multi-class model unavailable.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 2 — PRICE CHART
+# ══════════════════════════════════════════════════════════════════════════════
+st.markdown("---")
+df_chart = df_raw.copy()
+df_chart[date_col] = pd.to_datetime(df_chart[date_col])
+df_chart = df_chart.tail(days_history)
+st.plotly_chart(candlestick_chart(df_chart, ticker), use_container_width=True)
+
+# ── Price KPIs ─────────────────────────────────────────────────────────────────
 s1, s2, s3, s4 = st.columns(4)
-arrow = "▲" if day_change >= 0 else "▼"
-c_col = "#10b981" if day_change >= 0 else "#ef4444"
-
 for col, val, lbl in zip(
     [s1, s2, s3, s4],
     [
@@ -223,79 +358,53 @@ for col, val, lbl in zip(
     ],
     ["Last Close", "Day Change", "Open", "Volume"],
 ):
-    col.markdown(f'''
-    <div class="stat">
-        <div class="stat-val">{val}</div>
-        <div class="stat-lbl">{lbl}</div>
-    </div>
-    ''', unsafe_allow_html=True)
+    col.markdown(f'<div class="stat"><div class="stat-val">{val}</div>'
+                 f'<div class="stat-lbl">{lbl}</div></div>', unsafe_allow_html=True)
 
-# ── TABS: Binary vs Multi-Class ────────────────────────────────────────────────
-st.markdown("---")
-tab_binary, tab_multi = st.tabs(["📊 Binary Model (Rise/Fall)", "📊 Multi-Class Model (4 Classes)"])
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 3 — MODEL STATISTICS (collapsible)
+# ══════════════════════════════════════════════════════════════════════════════
+with st.expander("📊 Model Statistics", expanded=False):
+    ms_col_b, ms_col_m = st.columns(2)
 
-# ── Binary Tab ─────────────────────────────────────────────────────────────────
-with tab_binary:
-    try:
-        pipeline_binary, features_binary = load_model(ticker, "binary")
-        X_live_binary = prepare_for_prediction(df_raw.copy(), features_binary)
-
-        if X_live_binary.empty:
-            st.error("Not enough data after ETL. Try a wider date range.")
+    with ms_col_b:
+        st.markdown("**Binary Model**")
+        if binary_ok and pipeline_binary is not None and features_binary:
+            render_model_stats(pipeline_binary, features_binary or [], "binary")
         else:
-            X_latest_binary = X_live_binary.iloc[[-1]]
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                display_prediction(pipeline_binary, X_latest_binary, "binary", ticker)
-            with col2:
-                st.markdown('<p class="sec">Features Used</p>', unsafe_allow_html=True)
-                feat_df = X_latest_binary.T.rename(columns={X_latest_binary.index[0]: "Value"})
-                feat_df["Value"] = feat_df["Value"].round(6)
-                st.dataframe(feat_df, use_container_width=True, height=min(35 * len(feat_df) + 38, 350))
-                pred_date = (date.today() + timedelta(days=1)).strftime("%A, %d %B %Y")
-                st.markdown(f'''
-                <div class="info" style="margin-top:10px;">
-                    📅 Predicting for: <strong>{pred_date}</strong><br>
-                    Based on data up to: <strong>{latest[date_col]}</strong>
-                </div>
-                ''', unsafe_allow_html=True)
-    except FileNotFoundError as e:
-        st.error(str(e))
-    except ValueError as e:
-        st.error(f"ETL error: {e}")
+            st.info("Binary model not loaded.")
 
-# ── Multi-Class Tab ────────────────────────────────────────────────────────────
-with tab_multi:
-    try:
-        pipeline_multi, features_multi = load_model(ticker, "multi")
-        X_live_multi = prepare_for_prediction(df_raw.copy(), features_multi)
-
-        if X_live_multi.empty:
-            st.error("Not enough data after ETL. Try a wider date range.")
+    with ms_col_m:
+        st.markdown("**Multi-Class Model**")
+        if multi_ok and pipeline_multi is not None and features_multi is not None:
+            render_model_stats(pipeline_multi, features_multi, "multi")
         else:
-            X_latest_multi = X_live_multi.iloc[[-1]]
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                display_prediction(pipeline_multi, X_latest_multi, "multi", ticker)
-            with col2:
-                st.markdown('<p class="sec">Features Used</p>', unsafe_allow_html=True)
-                feat_df = X_latest_multi.T.rename(columns={X_latest_multi.index[0]: "Value"})
-                feat_df["Value"] = feat_df["Value"].round(6)
-                st.dataframe(feat_df, use_container_width=True, height=min(35 * len(feat_df) + 38, 350))
-                st.markdown('''
-                <div class="info" style="margin-top:10px;">
-                    <strong>Multi-Class Targets:</strong><br>
-                    • Big Fall: return &lt; -1%<br>
-                    • Small Fall: -1% ≤ return &lt; 0%<br>
-                    • Small Rise: 0% ≤ return &lt; +1%<br>
-                    • Big Rise: return ≥ +1%
-                </div>
-                ''', unsafe_allow_html=True)
-    except FileNotFoundError as e:
-        st.error(str(e))
-    except ValueError as e:
-        st.error(f"ETL error: {e}")
+            st.info("Multi-class model not loaded.")
 
-# Raw data expander
-with st.expander("📋 Raw price data"):
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 4 — FEATURES USED (collapsible)
+# ══════════════════════════════════════════════════════════════════════════════
+with st.expander("🔬 Features Used (input values sent to the models)", expanded=False):
+    fv_col_b, fv_col_m = st.columns(2)
+
+    with fv_col_b:
+        st.markdown("**Binary Model features**")
+        if binary_ok and X_latest_binary is not None:
+            feat_df = X_latest_binary.T.rename(columns={X_latest_binary.index[0]: "Value"})
+            feat_df["Value"] = feat_df["Value"].round(6)
+            st.dataframe(feat_df, use_container_width=True, height=min(35 * len(feat_df) + 38, 500))
+        else:
+            st.info("Not available.")
+
+    with fv_col_m:
+        st.markdown("**Multi-Class Model features**")
+        if multi_ok and X_latest_multi is not None:
+            feat_df = X_latest_multi.T.rename(columns={X_latest_multi.index[0]: "Value"})
+            feat_df["Value"] = feat_df["Value"].round(6)
+            st.dataframe(feat_df, use_container_width=True, height=min(35 * len(feat_df) + 38, 500))
+        else:
+            st.info("Not available.")
+
+# ── Raw data ───────────────────────────────────────────────────────────────────
+with st.expander("📋 Raw price data (last 30 rows)"):
     st.dataframe(df_raw.tail(30), use_container_width=True)
