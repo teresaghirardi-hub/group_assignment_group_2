@@ -266,8 +266,15 @@ for col, (ticker, name) in zip(cols, [("AMZN","Amazon"),("AAPL","Apple"),("MSFT"
 
 # ── Team ───────────────────────────────────────────────────────────────────────
 st.markdown('<p class="sec-hdr">The team</p>', unsafe_allow_html=True)
-team = [("👤","Team Member 1","ML & ETL"),("👤","Team Member 2","API Wrapper"),
-        ("👤","Team Member 3","Streamlit App"),("👤","Team Member 4","Deployment")]
-tcols = st.columns(4)
-for col, (av, name, role) in zip(tcols, team):
-    col.markdown(f'<div class="team-card"><div class="team-av">{av}</div><div class="team-name">{name}</div><div class="team-role">{role}</div></div>', unsafe_allow_html=True)
+
+st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:0 0 8px 0;">🧠 ML Team — ETL pipeline, ML model & trading strategy</p>', unsafe_allow_html=True)
+ml1, ml2, ml3, _, _ = st.columns(5)
+team_ml = [("👤", "Team Member 1"), ("👤", "Team Member 2"), ("👤", "Team Member 3")]
+for col, (av, name) in zip([ml1, ml2, ml3], team_ml):
+    col.markdown(f'<div class="team-card"><div class="team-av">{av}</div><div class="team-name">{name}</div></div>', unsafe_allow_html=True)
+
+st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:16px 0 8px 0;">💻 DEV Team — API wrapper, Streamlit web app & cloud deployment</p>', unsafe_allow_html=True)
+dev1, dev2, _, _, _ = st.columns(5)
+team_dev = [("👤", "Team Member 4"), ("👤", "Team Member 5")]
+for col, (av, name) in zip([dev1, dev2], team_dev):
+    col.markdown(f'<div class="team-card"><div class="team-av">{av}</div><div class="team-name">{name}</div></div>', unsafe_allow_html=True)
