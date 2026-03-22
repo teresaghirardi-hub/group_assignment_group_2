@@ -12,7 +12,7 @@ ML-powered trading system that predicts next-day stock price movements for 5 US 
 | Teresa Ghirardi | Cloud Deployment & Testing |
 
 ## Live App
-🔗 **[(https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/)]**
+🔗 **[https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/]**
 
 ---
 
