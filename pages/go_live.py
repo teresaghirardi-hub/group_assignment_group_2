@@ -45,6 +45,19 @@ section[data-testid="stSidebar"] {
 section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
 section[data-testid="stSidebar"] a:hover { color: #63b3ed !important; }
 
+/* Sidebar selectbox — match sidebar bg, light text */
+section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+    background-color: #1a2744 !important;
+    border-color: rgba(255,255,255,0.2) !important;
+    color: #e2e8f0 !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="select"] svg { fill: #e2e8f0 !important; }
+/* Dropdown popup list */
+[data-baseweb="menu"] { background-color: #1e3258 !important; }
+[data-baseweb="menu"] li { color: #e2e8f0 !important; background-color: #1e3258 !important; }
+[data-baseweb="menu"] li:hover { background-color: #2a4070 !important; }
+[data-baseweb="menu"] [aria-selected="true"] { background-color: rgba(37,99,235,0.35) !important; }
+
 /* Hide auto-generated Streamlit nav (we use our own) */
 [data-testid="stSidebarNavItems"] { display: none; }
 
