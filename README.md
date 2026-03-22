@@ -4,8 +4,8 @@ ML-powered trading system that predicts next-day stock price movements for 5 US 
 
 | Team | Description | Members |
 |------|-------------|---------|
-| ML Team | ETL pipeline, ML model & trading strategy | Marcos Ortiz, Dan Tigu |
-| DEV Team | API wrapper, Streamlit web app & cloud deployment | Siddarth Murali, Nuria Diaz, Teresa Ghirardi |
+| ML Team | ETL pipeline, ML model & trading strategy | Marcos Ortiz, Nuria Diaz, Dan Tigu |
+| DEV Team | API wrapper, Streamlit web app & cloud deployment | Siddarth Murali, Teresa Ghirardi |
 
 ## Live App
 🔗 **[https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/]**
