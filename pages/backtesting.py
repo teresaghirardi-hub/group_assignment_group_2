@@ -44,18 +44,65 @@ section[data-testid="stSidebar"] {
 section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
 section[data-testid="stSidebar"] a:hover { color: #63b3ed !important; }
 
-/* Sidebar selectbox — match sidebar bg, light text */
+/* ── Sidebar widgets: all match sidebar bg with light text ── */
+
+/* Selectbox */
 section[data-testid="stSidebar"] [data-baseweb="select"] > div {
     background-color: #1a2744 !important;
     border-color: rgba(255,255,255,0.2) !important;
     color: #e2e8f0 !important;
 }
 section[data-testid="stSidebar"] [data-baseweb="select"] svg { fill: #e2e8f0 !important; }
-/* Dropdown popup list */
+
+/* Selectbox / date / number input popup list */
 [data-baseweb="menu"] { background-color: #1e3258 !important; }
 [data-baseweb="menu"] li { color: #e2e8f0 !important; background-color: #1e3258 !important; }
 [data-baseweb="menu"] li:hover { background-color: #2a4070 !important; }
 [data-baseweb="menu"] [aria-selected="true"] { background-color: rgba(37,99,235,0.35) !important; }
+
+/* Text / date / number inputs */
+section[data-testid="stSidebar"] [data-baseweb="base-input"] {
+    background-color: #1a2744 !important;
+    border-color: rgba(255,255,255,0.2) !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="base-input"] input {
+    background-color: #1a2744 !important;
+    color: #e2e8f0 !important;
+}
+/* Number input +/- buttons */
+section[data-testid="stSidebar"] [data-testid="stNumberInput"] button {
+    background-color: #243b60 !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255,255,255,0.15) !important;
+}
+
+/* Radio buttons */
+section[data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child {
+    background-color: #1a2744 !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="radio"] {
+    color: #e2e8f0 !important;
+}
+
+/* Slider track & thumb */
+section[data-testid="stSidebar"] [data-testid="stSlider"] > div > div > div {
+    background-color: rgba(255,255,255,0.15) !important;
+}
+section[data-testid="stSidebar"] [data-testid="stSlider"] [role="slider"] {
+    background-color: #63b3ed !important;
+    border-color: #63b3ed !important;
+}
+
+/* Date picker calendar popup */
+[data-baseweb="calendar"] {
+    background-color: #1e3258 !important;
+    color: #e2e8f0 !important;
+}
+[data-baseweb="calendar"] * { color: #e2e8f0 !important; }
+[data-baseweb="calendar"] [aria-selected="true"] > div {
+    background-color: #2563eb !important;
+}
 
 /* Hide auto-generated Streamlit nav (we use our own) */
 [data-testid="stSidebarNavItems"] { display: none; }
