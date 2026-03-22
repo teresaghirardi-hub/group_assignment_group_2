@@ -36,7 +36,16 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif; }
 .stApp { background: #0a0e1a; color: #e2e8f0; }
-section[data-testid="stSidebar"] { background: #0d1117; border-right: 1px solid rgba(255,255,255,0.06); }
+/* Lighter sidebar so text is readable */
+section[data-testid="stSidebar"] {
+    background: #1a2744;
+    border-right: 1px solid rgba(255,255,255,0.10);
+}
+section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+section[data-testid="stSidebar"] a:hover { color: #63b3ed !important; }
+
+/* Hide auto-generated Streamlit nav (we use our own) */
+[data-testid="stSidebarNavItems"] { display: none; }
 .kpi { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px; text-align: center; }
 .kpi-val { font-size: 1.6rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 .kpi-lbl { font-size: 0.78rem; color: #64748b; margin-top: 5px; }
