@@ -36,6 +36,8 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif; }
 .stApp { background: #0a0e1a; color: #e2e8f0; }
+header[data-testid="stHeader"] { background: #0a0e1a !important; border-bottom: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
 
 /* Lighter sidebar so text is readable */
 section[data-testid="stSidebar"] {
