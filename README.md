@@ -2,14 +2,10 @@
 
 ML-powered trading system that predicts next-day stock price movements for 5 US companies and serves predictions through a live Streamlit web app.
 
-## Team
-| Name | Role |
-|------|------|
-| Marcos Ortiz | ETL Pipeline |
-| Dan Tigu | Machine Learning Model |
-| Siddarth Murali | Python API Wrapper (SimFin) |
-| Nuria Diaz | Streamlit Web App |
-| Teresa Ghirardi | Cloud Deployment & Testing |
+| Team | Description | Members |
+|------|-------------|---------|
+| ML Team | ETL pipeline, ML model & trading strategy | Marcos Ortiz, Dan Tigu |
+| DEV Team | API wrapper, Streamlit web app & cloud deployment | Siddarth Murali, Nuria Diaz, Teresa Ghirardi |
 
 ## Live App
 🔗 **[https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/]**
