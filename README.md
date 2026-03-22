@@ -5,10 +5,11 @@ ML-powered trading system that predicts next-day stock price movements for 5 US 
 ## Team
 | Name | Role |
 |------|------|
-| Team Member 1 | ML & ETL |
-| Team Member 2 | API Wrapper |
-| Team Member 3 | Streamlit App |
-| Team Member 4 | Deployment |
+| Marcos Ortiz | ETL Pipeline |
+| Teresa Ghirardi | Machine Learning Model |
+| Siddarth Murali | Python API Wrapper (SimFin) |
+| Nuria Diaz | Streamlit Web App |
+| Dan Tigu | Cloud Deployment & Testing |
 
 ## Live App
 🔗 **[Insert Streamlit Cloud URL here]**
