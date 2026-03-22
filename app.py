@@ -102,8 +102,12 @@ with st.sidebar:
 st.markdown("""
 <div class="hero">
     <div class="hero-title">Algo<span>Trader</span></div>
-    <p class="hero-sub">An automated daily trading system using machine learning to predict
-    next-day stock price movements for 5 US companies.</p>
+    <p class="hero-sub">
+        An end-to-end automated daily trading system built for the
+        <strong style="color:#e2e8f0;">Programming for Data Analytics II</strong> group project at IE University.
+        Machine learning models trained on 24 technical indicators predict next-day stock price movements
+        for 5 major US companies — combining a live prediction engine with a historical strategy backtester.
+    </p>
     <span class="badge">Python</span>
     <span class="badge">Scikit-learn</span>
     <span class="badge">XGBoost</span>
@@ -112,27 +116,78 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Stats ──────────────────────────────────────────────────────────────────────
-c1, c2, c3, c4 = st.columns(4)
-for col, val, lbl in zip([c1,c2,c3,c4],
-    ["5", "24", "2", "Live"],
-    ["Companies tracked", "Technical features", "Model types", "SimFin data feed"]):
+# ── Top-level stats ─────────────────────────────────────────────────────────────
+c1, c2, c3, c4, c5 = st.columns(5)
+for col, val, lbl in zip(
+    [c1, c2, c3, c4, c5],
+    ["5", "24", "4", "2", "Daily"],
+    ["Covered companies", "Technical features", "Algorithms compared", "Model types", "Prediction frequency"],
+):
     col.markdown(f'<div class="chip"><div class="chip-val">{val}</div><div class="chip-lbl">{lbl}</div></div>', unsafe_allow_html=True)
 
-# ── App Overview ───────────────────────────────────────────────────────────────
-st.markdown('<p class="sec-hdr">Overview</p>', unsafe_allow_html=True)
+# ── Covered companies ──────────────────────────────────────────────────────────
+st.markdown('<p class="sec-hdr">Covered companies</p>', unsafe_allow_html=True)
+comp_cols = st.columns(5)
+for col, (ticker, name, sector) in zip(comp_cols, [
+    ("AMZN", "Amazon",    "E-commerce / Cloud"),
+    ("AAPL", "Apple",     "Consumer Tech"),
+    ("MSFT", "Microsoft", "Enterprise Software"),
+    ("GOOG", "Alphabet",  "Search / Advertising"),
+    ("TSLA", "Tesla",     "Electric Vehicles"),
+]):
+    col.markdown(
+        f'<div class="card" style="text-align:center;padding:18px 12px;">'
+        f'<div class="chip-val" style="font-size:1.15rem;">{ticker}</div>'
+        f'<div style="font-size:0.88rem;color:#e2e8f0;font-weight:600;margin-top:6px;">{name}</div>'
+        f'<div class="chip-lbl" style="margin-top:4px;">{sector}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+# ── What this app does ─────────────────────────────────────────────────────────
+st.markdown('<p class="sec-hdr">What this app does</p>', unsafe_allow_html=True)
 fc1, fc2, fc3 = st.columns(3)
 for col, icon, title, desc in zip(
     [fc1, fc2, fc3],
     ["🔬", "⚡", "📊"],
-    ["ML Predictions", "Real-Time Data", "Strategy Backtesting"],
+    ["ML-Powered Predictions", "Live Data Pipeline", "Strategy Backtesting"],
     [
-        "Binary & multi-class models trained on 24 technical indicators predict next-day price movements with confidence scores.",
-        "Connects live to SimFin API and applies the identical ETL pipeline used during training — no data leakage.",
-        "Simulate BUY/SELL/HOLD strategies on historical data and review performance metrics, drawdowns, and equity curves.",
+        "Two classification models are trained per company — a binary model (Rise/Fall) and a multi-class model (Big Fall / Small Fall / Small Rise / Big Rise). Each company's best-performing model is selected by cross-validated AUC-ROC or F1 Macro.",
+        "The Go Live page connects to the SimFin API, runs the same ETL pipeline used at training time, and returns a trading signal with class probabilities — no lookahead bias, no data leakage.",
+        "Simulate a BUY/SELL/HOLD strategy over any historical date range. Choose a simple signal-based approach or an advanced mode with confidence thresholds, position sizing, and transaction costs.",
     ],
 ):
-    col.markdown(f'<div class="card"><div class="card-icon">{icon}</div><div class="card-title">{title}</div><div class="card-desc">{desc}</div></div>', unsafe_allow_html=True)
+    col.markdown(
+        f'<div class="card"><div class="card-icon">{icon}</div>'
+        f'<div class="card-title">{title}</div>'
+        f'<div class="card-desc">{desc}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+# ── How it works ───────────────────────────────────────────────────────────────
+st.markdown('<p class="sec-hdr">How it works</p>', unsafe_allow_html=True)
+hw1, hw2, hw3, hw4 = st.columns(4)
+for col, num, title, desc in zip(
+    [hw1, hw2, hw3, hw4],
+    ["01", "02", "03", "04"],
+    ["ETL Pipeline", "Model Training", "Model Export", "Live Prediction"],
+    [
+        "SimFin OHLCV data is enriched with 24 technical indicators — SMAs, MACD, Bollinger Bands, RSI, ATR, OBV and more. Binary and multi-class targets are derived from the following day's return.",
+        "Four classifiers are evaluated per ticker: Logistic Regression, Random Forest, Gradient Boosting, and XGBoost. The best is chosen by AUC-ROC (binary) or F1 Macro (multi-class) via time-series cross-validation.",
+        "The winning pipeline — scaler + model — is saved to a .joblib file and the exact feature list to a .txt file, guaranteeing identical preprocessing between training and inference.",
+        "The Go Live page fetches fresh data, applies the identical ETL pipeline, and feeds the result into the saved model — returning a directional signal and probability breakdown.",
+    ],
+):
+    col.markdown(
+        f'<div class="card" style="height:auto;">'
+        f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
+        f'<div class="step-num">{num}</div>'
+        f'<span class="card-title" style="margin:0;">{title}</span>'
+        f'</div>'
+        f'<div class="card-desc">{desc}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── How to use ─────────────────────────────────────────────────────────────────
 st.markdown('<p class="sec-hdr">How to use this app</p>', unsafe_allow_html=True)
@@ -143,12 +198,12 @@ with gi1:
     <div class="instr-box">
         <h4>⚡ Go Live — get a prediction</h4>
         <ul>
-            <li>Click <strong>Go Live</strong> in the left sidebar.</li>
-            <li>Select a <strong>ticker</strong> (AMZN, AAPL, MSFT, GOOG, TSLA).</li>
-            <li>Adjust <strong>days of history</strong> shown on the chart.</li>
+            <li>Click <strong>Go Live</strong> in the sidebar.</li>
+            <li>Select a <strong>company ticker</strong> from the dropdown.</li>
+            <li>Adjust the <strong>days of history</strong> shown on the price chart.</li>
             <li>Click <strong>Get Prediction</strong>.</li>
-            <li>The app fetches live data, runs the ETL pipeline, and shows you a <strong>BUY / SELL / HOLD</strong> signal with class probabilities for both the binary and multi-class model.</li>
-            <li>Expand <span class="tag">Features Used</span> to inspect the computed indicators and <span class="tag">Model Statistics</span> for classifier details.</li>
+            <li>View the <strong>BUY / SELL / HOLD</strong> signal, class probabilities, and model KPIs.</li>
+            <li>Expand <span class="tag">Features Used</span> to inspect all computed indicators.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -158,10 +213,9 @@ with gi2:
     <div class="instr-box">
         <h4>🔁 Backtesting — simulate a strategy</h4>
         <ul>
-            <li>Click <strong>Backtesting</strong> in the left sidebar.</li>
-            <li>Choose a ticker, date range, and strategy mode (<strong>Simple</strong> or <strong>Advanced</strong>).</li>
-            <li><strong>Simple</strong> mode uses the binary model signal directly.</li>
-            <li><strong>Advanced</strong> mode adds a confidence threshold, position sizing, and transaction costs.</li>
+            <li>Click <strong>Backtesting</strong> in the sidebar.</li>
+            <li>Choose a ticker and a <strong>date range</strong>.</li>
+            <li>Pick <strong>Simple</strong> mode (direct signal) or <strong>Advanced</strong> mode (confidence threshold, position sizing, and transaction costs).</li>
             <li>Review the equity curve, Sharpe ratio, max drawdown, and trade log.</li>
         </ul>
     </div>
@@ -170,55 +224,13 @@ with gi2:
 with gi3:
     st.markdown("""
     <div class="instr-box">
-        <h4>🛠️ Setup requirements</h4>
+        <h4>🛠️ Requirements before running</h4>
         <ul>
-            <li>A valid <strong>SimFin API key</strong> must be set before using Go Live.</li>
-            <li>Add it to a <span class="tag">.env</span> file at the project root:<br><span class="tag">SIMFIN_API_KEY=your_key</span></li>
-            <li>Or on Streamlit Cloud, add it under <em>App settings → Secrets</em>.</li>
-            <li>Models must be trained first. Run <span class="tag">ml_model_binary.ipynb</span> and <span class="tag">ml_model_multiclass.ipynb</span> to generate <span class="tag">.joblib</span> files in <span class="tag">models/</span>.</li>
+            <li>A valid <strong>SimFin API key</strong> is required for Go Live.</li>
+            <li>Add it to a <span class="tag">.env</span> file:<br><span class="tag">SIMFIN_API_KEY=your_key</span></li>
+            <li>On Streamlit Cloud add it under <em>App settings → Secrets</em>.</li>
+            <li>Train the models first by running <span class="tag">ml_model_binary.ipynb</span> and <span class="tag">ml_model_multiclass.ipynb</span> — this saves the <span class="tag">.joblib</span> files to <span class="tag">models/</span>.</li>
         </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ── How it works ───────────────────────────────────────────────────────────────
-st.markdown('<p class="sec-hdr">How it works</p>', unsafe_allow_html=True)
-left, right = st.columns([1, 1])
-
-with left:
-    for num, title, desc in [
-        ("01", "ETL Pipeline", "SimFin bulk data enriched with 24 technical indicators (SMAs, MACD, Bollinger Bands, RSI, etc). Creates binary and multi-class targets."),
-        ("02", "Model Training", "4 models compared per ticker: Logistic Regression, Random Forest, Gradient Boosting, XGBoost. Best model selected by AUC-ROC (binary) or F1 Macro (multi)."),
-        ("03", "Model Export", "Best model pipeline saved as .joblib. Feature list saved as .txt. Both loaded by the web app at runtime."),
-        ("04", "Live Prediction", "Go Live page fetches fresh SimFin data, applies identical ETL, shows prediction with confidence scores."),
-    ]:
-        st.markdown(f'<div class="step"><div class="step-num">{num}</div><div><span class="step-title">{title}</span><span class="step-desc">{desc}</span></div></div>', unsafe_allow_html=True)
-
-with right:
-    st.markdown("""
-    <div class="card" style="height:auto;">
-        <div class="card-title" style="margin-bottom:14px;">📁 Project Structure</div>
-        <pre style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:#94a3b8;margin:0;line-height:1.8;">
-trading-app/
-├── app.py                     Home page
-├── etl.py                     Shared ETL & model utilities
-├── pysimfin.py                SimFin API wrapper
-├── pages/
-│   ├── go_live.py             Live predictions
-│   └── backtesting.py         Strategy backtesting
-├── notebooks/
-│   ├── etl.ipynb              ETL pipeline
-│   ├── ml_model_binary.ipynb  Binary classification
-│   └── ml_model_multiclass.ipynb  Multi-class
-├── models/
-│   ├── model_AMZN_binary.joblib
-│   ├── model_AMZN_multi.joblib
-│   ├── features_AMZN_binary.txt
-│   └── ...
-├── data/
-│   ├── raw/                   SimFin bulk downloads
-│   └── processed/             ETL output CSVs
-├── requirements.txt
-└── README.md</pre>
     </div>
     """, unsafe_allow_html=True)
 
@@ -228,7 +240,23 @@ st.markdown('<p class="sec-hdr">Model Status</p>', unsafe_allow_html=True)
 TICKERS = ["AMZN", "AAPL", "MSFT", "GOOG", "TSLA"]
 MODELS_DIR = Path(__file__).parent / "models"
 
-def _render_model_row(model_suffix: str) -> int:
+# Best model per ticker from notebook training runs
+BINARY_MODELS = {
+    "AMZN": ("Logistic Regression (Tuned)", 0.5314),
+    "AAPL": ("Random Forest (Tuned)",       0.4768),
+    "MSFT": ("Ensemble",                    0.5617),
+    "GOOG": ("Logistic Regression (Tuned)", 0.5658),
+    "TSLA": ("Logistic Regression (Tuned)", 0.5841),
+}
+MULTI_MODELS = {
+    "AMZN": ("Random Forest (Tuned)", 0.2315),
+    "AAPL": ("Random Forest",         0.2338),
+    "MSFT": ("XGBoost",               0.2523),
+    "GOOG": ("Ensemble",              0.2442),
+    "TSLA": ("Logistic Regression",   0.2982),
+}
+
+def _render_model_row(model_suffix: str, model_meta: dict) -> int:
     """Render one row of model status cards; return count of found models."""
     cols = st.columns(5)
     results = []
@@ -237,32 +265,34 @@ def _render_model_row(model_suffix: str) -> int:
         fp = MODELS_DIR / f"features_{t}_{model_suffix}.txt"
         ok = mp.exists() and fp.exists()
         results.append(ok)
+        algo, score = model_meta[t]
+        metric = "AUC-ROC" if model_suffix == "binary" else "F1 Macro"
         if ok:
             with open(fp) as fh:
                 n = len([ln for ln in fh if ln.strip()])
-            col.markdown(f'<div class="model-status"><div class="model-ok">✓ {t}</div>'
-                         f'<div style="font-size:0.72rem;color:#64748b;margin-top:4px;">{n} features</div></div>',
-                         unsafe_allow_html=True)
+            col.markdown(
+                f'<div class="model-status">'
+                f'<div class="model-ok">✓ {t}</div>'
+                f'<div style="font-size:0.78rem;color:#e2e8f0;margin-top:5px;font-weight:500;">{algo}</div>'
+                f'<div style="font-size:0.72rem;color:#64748b;margin-top:3px;">{metric}: {score} · {n} features</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
         else:
-            col.markdown(f'<div class="model-status"><div class="model-miss">✗ {t}</div>'
-                         f'<div style="font-size:0.72rem;color:#64748b;margin-top:4px;">Not found</div></div>',
-                         unsafe_allow_html=True)
+            col.markdown(
+                f'<div class="model-status"><div class="model-miss">✗ {t}</div>'
+                f'<div style="font-size:0.72rem;color:#64748b;margin-top:4px;">Not found</div></div>',
+                unsafe_allow_html=True,
+            )
     return sum(results)
 
-st.markdown("**Binary Models** (Rise / Fall)")
-binary_ok = _render_model_row("binary")
-
-st.markdown("**Multi-Class Models** (Big Fall / Small Fall / Small Rise / Big Rise)")
-multi_ok = _render_model_row("multi")
+st.markdown("**Binary Models** — Rise / Fall")
+binary_ok = _render_model_row("binary", BINARY_MODELS)
+st.markdown("**Multi-Class Models** — Big Fall / Small Fall / Small Rise / Big Rise")
+multi_ok = _render_model_row("multi", MULTI_MODELS)
 
 if binary_ok < 5 or multi_ok < 5:
-    st.warning("⚠️ Some models missing. Run `notebooks/ml_model_binary.ipynb` and `notebooks/ml_model_multiclass.ipynb` first.")
-
-# ── Covered Tickers ────────────────────────────────────────────────────────────
-st.markdown('<p class="sec-hdr">Covered companies</p>', unsafe_allow_html=True)
-cols = st.columns(5)
-for col, (ticker, name) in zip(cols, [("AMZN","Amazon"),("AAPL","Apple"),("MSFT","Microsoft"),("GOOG","Alphabet"),("TSLA","Tesla")]):
-    col.markdown(f'<div class="chip"><div class="chip-val" style="font-size:1rem;">{ticker}</div><div class="chip-lbl">{name}</div></div>', unsafe_allow_html=True)
+    st.warning("⚠️ Some models are missing. Run `ml_model_binary.ipynb` and `ml_model_multiclass.ipynb` to generate them.")
 
 # ── Team ───────────────────────────────────────────────────────────────────────
 st.markdown('<p class="sec-hdr">The team</p>', unsafe_allow_html=True)
