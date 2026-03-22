@@ -269,12 +269,12 @@ st.markdown('<p class="sec-hdr">The team</p>', unsafe_allow_html=True)
 
 st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:0 0 8px 0;">🧠 ML Team — ETL pipeline, ML model & trading strategy</p>', unsafe_allow_html=True)
 ml1, ml2, ml3, _, _ = st.columns(5)
-team_ml = [("👤", "Team Member 1"), ("👤", "Team Member 2"), ("👤", "Team Member 3")]
+team_ml = [("👤", "Marcos Ortiz"), ("👤", "Dan Tigu"), ("👤", "Nuria Diaz")]
 for col, (av, name) in zip([ml1, ml2, ml3], team_ml):
     col.markdown(f'<div class="team-card"><div class="team-av">{av}</div><div class="team-name">{name}</div></div>', unsafe_allow_html=True)
 
 st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:16px 0 8px 0;">💻 DEV Team — API wrapper, Streamlit web app & cloud deployment</p>', unsafe_allow_html=True)
 dev1, dev2, _, _, _ = st.columns(5)
-team_dev = [("👤", "Team Member 4"), ("👤", "Team Member 5")]
+team_dev = [("👤", "Siddarth Murali"), ("👤", "Teresa Ghirardi")]
 for col, (av, name) in zip([dev1, dev2], team_dev):
     col.markdown(f'<div class="team-card"><div class="team-av">{av}</div><div class="team-name">{name}</div></div>', unsafe_allow_html=True)
