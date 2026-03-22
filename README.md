@@ -6,13 +6,13 @@ ML-powered trading system that predicts next-day stock price movements for 5 US 
 | Name | Role |
 |------|------|
 | Marcos Ortiz | ETL Pipeline |
-| Teresa Ghirardi | Machine Learning Model |
+| Dan Tigu | Machine Learning Model |
 | Siddarth Murali | Python API Wrapper (SimFin) |
 | Nuria Diaz | Streamlit Web App |
-| Dan Tigu | Cloud Deployment & Testing |
+| Teresa Ghirardi | Cloud Deployment & Testing |
 
 ## Live App
-🔗 **[Insert Streamlit Cloud URL here]**
+🔗 **[(https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/)]**
 
 ---
 
