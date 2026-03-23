@@ -1,72 +1,204 @@
-# AlgoTrader — Automated Daily Trading System
+# 📈 AlgoTrader — Automated Daily Trading System
 
-ML-powered trading system that predicts next-day stock price movements for 5 US companies and serves predictions through a live Streamlit web app.
+> ML-powered trading system that predicts next-day stock price movements for 5 major US
+> equities and serves predictions through a live Streamlit web app.
 
-| Team | Description | Members |
-|------|-------------|---------|
-| ML Team | ETL pipeline, ML model & trading strategy | Marcos Ortiz, Nuria Diaz, Dan Tigu |
-| DEV Team | API wrapper, Streamlit web app & cloud deployment | Siddarth Murali, Teresa Ghirardi |
+🔗 **Live App:** [https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/]
 
-## Live App
-🔗 **[https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/]**
+---
+
+## The Team
+
+| Team | Role | Members |
+|------|------|---------|
+| 🧠 ML Team | ETL pipeline, ML model & trading strategy | Marcos Ortiz, Nuria Diaz, Dan Tigu |
+| 💻 DEV Team | API wrapper, Streamlit web app & cloud deployment | Siddarth Murali, Teresa Ghirardi |
+
+---
+
+## Overview
+
+AlgoTrader is a full-stack machine learning application that predicts whether a stock's
+closing price will be higher or lower the next trading day. It combines a rigorous ETL
+pipeline, trained classification models, and a live Streamlit interface with two core
+modules:
+
+- **Go Live** — fetches real-time price data from the SimFin API, applies the same
+  feature pipeline used during training, and returns a next-day BUY / SELL signal with
+  confidence scores
+- **Backtesting** — simulates how the model's signals would have performed over any
+  historical date range, with Simple and Advanced strategy modes
+
+---
+
+## Key Features
+
+- Live next-day predictions using real-time SimFin data
+- Binary and multi-class ML models per ticker
+- 24 technical indicators engineered from raw OHLCV data
+- Simple backtesting: fixed BUY 1 / SELL ALL signal-based strategy
+- Advanced backtesting: confidence threshold filtering, portfolio % sizing,
+  commission, slippage, Sharpe ratio, max drawdown, win rate
+- No data leakage — identical ETL pipeline used at training and inference time
+- Deployed on Streamlit Cloud (no local setup needed to use the app)
+
+---
+
+## How It Works
+```
+SimFin bulk data
+      │
+      ▼
+etl.ipynb ──► 24 technical features ──► binary target (Rise / Fall)
+                                    └──► multi-class target (Big Fall / Small Fall / Small Rise / Big Rise)
+      │
+      ▼
+ml_model_binary.ipynb     ──► model_TICKER_binary.joblib
+ml_model_multiclass.ipynb ──► model_TICKER_multi.joblib
+      │
+      ▼
+Streamlit app (app.py)
+  ├── Go Live     ──► SimFin API ──► ETL ──► predict() ──► signal + confidence
+  └── Backtesting ──► SimFin API ──► ETL ──► simulate portfolio ──► metrics + charts
+```
+
+### Models
+
+| Setting | Detail |
+|---------|--------|
+| Task | Binary classification (Rise / Fall) and Multi-class (4 categories) |
+| Binary target | 1 = tomorrow's Close > today's Close, 0 = falls |
+| Multi-class target | Big Fall (<−1%) / Small Fall (−1%→0%) / Small Rise (0%→+1%) / Big Rise (≥+1%) |
+| Algorithms compared | Logistic Regression, Random Forest, Gradient Boosting, XGBoost |
+| Binary selection metric | AUC-ROC |
+| Multi-class selection metric | F1 Macro |
+| Cross-validation | TimeSeriesSplit (prevents look-ahead bias) |
+| Export format | StandardScaler + Classifier Pipeline saved as `.joblib` |
+
+### Technical Features (24 indicators)
+
+| Category | Features |
+|----------|----------|
+| Trend | SMA_5, SMA_20, MACD, MACD_Signal, MACD_Hist, Dist_SMA_5, Dist_SMA_20 |
+| Momentum | RSI_14, Momentum_10, Momentum_20 |
+| Volatility | Volatility_5, Volatility_20, BB_Width, BB_Position, ATR_Ratio, Price_Range |
+| Lagged returns | Return_Lag1, Return_Lag2, Return_Lag3, Return_Lag5 |
+| Volume | Volume_Change, Volume_Ratio |
+| Calendar | DayOfWeek |
+| Return | Returns |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Language | Python 3.11 |
+| ML | scikit-learn, XGBoost |
+| Data source | SimFin REST API v3 |
+| App framework | Streamlit |
+| Charts | Plotly |
+| Model storage | joblib |
 
 ---
 
 ## Project Structure
 ```
 trading-app/
-├── app.py                    Home page (Streamlit entry point)
-├── pysimfin.py               SimFin API wrapper class (Part 2.1)
+├── app.py                      Home page (Streamlit entry point)
+├── etl.py                      Shared ETL functions used at runtime
+├── pysimfin.py                 SimFin API wrapper (Part 2.1)
 ├── pages/
-│   ├── go_live.py            Live prediction page (Part 2.2.2)
-│   └── backtesting.py        Strategy backtesting page (Part 2.2.3 + 1.3)
+│   ├── go_live.py              Live prediction page (Part 2.2.2)
+│   └── backtesting.py          Strategy backtesting page (Part 2.2.3 + 1.3)
 ├── notebooks/
-│   └── etl.ipynb       ETL + ML training notebook (Part 1.1 + 1.2)
-├── models/                   Trained model files (generated by notebook)
-│   ├── model_AMZN.joblib
-│   ├── features_AMZN.txt
+│   ├── etl.ipynb               ETL pipeline & feature engineering (Part 1.1)
+│   ├── ml_model_binary.ipynb   Binary classifier training (Part 1.2a)
+│   └── ml_model_multiclass.ipynb  Multi-class classifier training (Part 1.2b)
+├── models/                     Trained model files (generated by notebooks)
+│   ├── model_AMZN_binary.joblib
+│   ├── features_AMZN_binary.txt
 │   └── ...
 ├── data/
-│   └── processed/            ETL output CSVs (not committed to git)
-|   └── raw/                  Raw data from SimFin 
+│   ├── raw/                    Raw SimFin bulk download (not committed)
+│   └── processed/              ETL output CSVs (not committed)
 ├── requirements.txt
-└──README.md
-
+└── README.md
 ```
 
 ---
 
-## How to Run Locally
+## Running Locally
 
+> The live app is deployed on Streamlit Cloud and requires no local setup to use.
+> Follow these steps only if you want to run or modify the project on your own machine.
 ```bash
-# 1. Clone
+# 1. Clone the repository
 git clone https://github.com/your-org/trading-app.git
 cd trading-app
 
-# 2. Create environment
+# 2. Create and activate environment
 conda create -n trading-app python=3.11
 conda activate trading-app
 pip install -r requirements.txt
 
-# 3. Add API key
-echo "SIMFIN_API_KEY=your_key_here" > .env
+# # 4. Add your own SimFin API key
+# The live app on Streamlit Cloud already has an API key configured — you only
+# need this step if you are running the project locally with your own key.
+#
+# Get a free API key at: https://simfin.com → sign up → API Access
+#
+# Create a .env file in the project root with the following content:
+#
+#   SIMFIN_API_KEY=your_key_here
+#
+# Replace "your_key_here" with your actual SimFin API key.
+#
+# Note: .env is listed in .gitignore and is NOT included in this repository.
+# You must create it yourself — it will never be committed to GitHub,
+# keeping your API key private.
 
-# 4. Run the ETL + ML notebook
-# Open notebooks/etl.ipynb and run all cells
-# This generates data/processed/ CSVs and models/ .joblib files
+# 4. Run the ETL and ML notebooks
+# Open notebooks/etl.ipynb and run all cells → generates data/processed/ CSVs
+# Open notebooks/ml_model_binary.ipynb and run all cells → generates models/*_binary.joblib
+# Open notebooks/ml_model_multiclass.ipynb and run all cells → generates models/*_multi.joblib
 
 # 5. Launch the app
 streamlit run app.py
 ```
 
-## Deployment (Streamlit Cloud)
-1. Push repo to GitHub (include models/ folder)
-2. Go to share.streamlit.io → New app → select repo → set app.py as entry point
-3. Add SIMFIN_API_KEY as a secret in Settings → Secrets
-4. > **API Key:** Create a `.env` file in the root of the repo with `SIMFIN_API_KEY=your_key_here`.
+---
 
-## Model
-- **Type:** Binary classification (Logistic Regression)
-- **Target:** 1 = tomorrow's Close > today's Close, 0 = falls
-- **Features selected per ticker via:** VIF analysis + RFECV with TimeSeriesSplit
-- **Export:** StandardScaler + LogisticRegression Pipeline saved as .joblib
+## Deployment
+
+The app is deployed on **Streamlit Cloud** and is publicly accessible at:
+
+🔗 https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/
+
+The SimFin API key is stored securely in **Streamlit Cloud → App Settings → Secrets**
+and is never exposed in the repository.
+
+To deploy your own instance:
+1. Push the repository to GitHub (include the `models/` folder)
+2. Go to [share.streamlit.io](https://share.streamlit.io) → New app
+3. Select your repo and set `app.py` as the entry point
+4. Under **Settings → Secrets**, add: `SIMFIN_API_KEY = "your_key_here"`
+5. Click **Deploy**
+
+---
+
+## Notes
+
+- `data/raw/` and `data/processed/` are excluded from version control — raw SimFin
+  data must be downloaded separately and the ETL notebook run before training
+- Model files in `models/` are committed to the repository so the live app can load
+  them without retraining on every deployment
+- All train/test splits are chronological — the model is never trained on data
+  that comes after its test period
+
+---
+
+## Disclaimer
+
+This project was built as part of a university group assignment. It is shared for
+portfolio and educational purposes only and does not constitute financial advice.

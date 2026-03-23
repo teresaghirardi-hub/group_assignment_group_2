@@ -56,10 +56,12 @@ section[data-testid="stSidebar"] [data-baseweb="select"] svg { fill: #e2e8f0 !im
 .hero-sub { font-size: 1.05rem; color: #94a3b8; max-width: 580px; margin: 0 0 20px 0; }
 .badge { display: inline-block; background: rgba(66,153,225,0.12); border: 1px solid rgba(66,153,225,0.3); color: #63b3ed; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; margin-right: 6px; font-family: 'JetBrains Mono', monospace; }
 
-.card { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 22px; height: 100%; }
+.card { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 22px; height: 100%; min-height: 225px; box-sizing: border-box; display: flex; flex-direction: column; }
 .card-icon { font-size: 1.8rem; margin-bottom: 10px; }
 .card-title { font-size: 1rem; font-weight: 600; color: #e2e8f0; margin-bottom: 6px; }
 .card-desc { font-size: 0.88rem; color: #64748b; line-height: 1.6; }
+.company-card { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 22px; box-sizing: border-box; }
+.how-card { background: #111827; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 22px; box-sizing: border-box; }
 
 .chip { background: rgba(99,179,237,0.08); border: 1px solid rgba(99,179,237,0.2); border-radius: 8px; padding: 12px 16px; text-align: center; }
 .chip-val { font-size: 1.5rem; font-weight: 700; color: #63b3ed; font-family: 'JetBrains Mono', monospace; }
@@ -81,7 +83,7 @@ section[data-testid="stSidebar"] [data-baseweb="select"] svg { fill: #e2e8f0 !im
 .model-ok { color: #10b981; }
 .model-miss { color: #ef4444; }
 
-.instr-box { background: #0f1e35; border: 1px solid rgba(99,179,237,0.2); border-radius: 12px; padding: 20px 24px; margin-bottom: 8px; }
+.instr-box { background: #0f1e35; border: 1px solid rgba(99,179,237,0.2); border-radius: 12px; padding: 20px 24px; margin-bottom: 8px; height: 100%; min-height: 300px; box-sizing: border-box; }
 .instr-box h4 { color: #63b3ed; font-size: 0.95rem; font-weight: 600; margin: 0 0 8px 0; }
 .instr-box ul { color: #94a3b8; font-size: 0.87rem; line-height: 1.8; margin: 0; padding-left: 18px; }
 .instr-box .tag { display: inline-block; background: rgba(99,179,237,0.12); border-radius: 4px; padding: 1px 7px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: #63b3ed; }
@@ -104,7 +106,7 @@ st.markdown("""
     <div class="hero-title">Algo<span>Trader</span></div>
     <p class="hero-sub">
         An end-to-end automated daily trading system built for the
-        <strong style="color:#e2e8f0;">Programming for Data Analytics II</strong> group project at IE University.
+        <strong style="color:#e2e8f0;">Python for Data Analytics II</strong> group project at IE University.
         Machine learning models trained on 24 technical indicators predict next-day stock price movements
         for 5 major US companies — combining a live prediction engine with a historical strategy backtester.
     </p>
@@ -136,7 +138,7 @@ for col, (ticker, name, sector) in zip(comp_cols, [
     ("TSLA", "Tesla",     "Electric Vehicles"),
 ]):
     col.markdown(
-        f'<div class="card" style="text-align:center;padding:18px 12px;">'
+        f'<div class="company-card" style="text-align:center;padding:18px 12px;">'
         f'<div class="chip-val" style="font-size:1.15rem;">{ticker}</div>'
         f'<div style="font-size:0.88rem;color:#e2e8f0;font-weight:600;margin-top:6px;">{name}</div>'
         f'<div class="chip-lbl" style="margin-top:4px;">{sector}</div>'
@@ -179,7 +181,7 @@ for col, num, title, desc in zip(
     ],
 ):
     col.markdown(
-        f'<div class="card" style="height:auto;">'
+        f'<div class="how-card">'
         f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
         f'<div class="step-num">{num}</div>'
         f'<span class="card-title" style="margin:0;">{title}</span>'
@@ -188,13 +190,14 @@ for col, num, title, desc in zip(
         f'</div>',
         unsafe_allow_html=True,
     )
-
+    
 # ── How to use ─────────────────────────────────────────────────────────────────
 st.markdown('<p class="sec-hdr">How to use this app</p>', unsafe_allow_html=True)
-gi1, gi2, gi3 = st.columns(3)
+gi1, gi2, gi3 = st.columns(3, gap="medium")
 
 with gi1:
     st.markdown("""
+    <div style="height:100%;">
     <div class="instr-box">
         <h4>⚡ Go Live — get a prediction</h4>
         <ul>
@@ -206,10 +209,12 @@ with gi1:
             <li>Expand <span class="tag">Features Used</span> to inspect all computed indicators.</li>
         </ul>
     </div>
+    </div>
     """, unsafe_allow_html=True)
 
 with gi2:
     st.markdown("""
+    <div style="height:100%;">
     <div class="instr-box">
         <h4>🔁 Backtesting — simulate a strategy</h4>
         <ul>
@@ -219,18 +224,22 @@ with gi2:
             <li>Review the equity curve, Sharpe ratio, max drawdown, and trade log.</li>
         </ul>
     </div>
+    </div>
     """, unsafe_allow_html=True)
 
 with gi3:
     st.markdown("""
+    <div style="height:100%;">
     <div class="instr-box">
-        <h4>🛠️ Requirements before running</h4>
+        <h4>🛠 Requirements before running</h4>
         <ul>
-            <li>A valid <strong>SimFin API key</strong> is required for Go Live.</li>
-            <li>Add it to a <span class="tag">.env</span> file:<br><span class="tag">SIMFIN_API_KEY=your_key</span></li>
-            <li>On Streamlit Cloud add it under <em>App settings → Secrets</em>.</li>
+            <li>The live app on Streamlit Cloud is ready to use — no setup needed.</li>
+            <li>To run locally, create a <span class="tag">.env</span> file in the project root:<br>
+                <span class="tag">SIMFIN_API_KEY=your_key</span><br>
+                Get a free key at <strong>simfin.com</strong></li>
             <li>Train the models first by running <span class="tag">ml_model_binary.ipynb</span> and <span class="tag">ml_model_multiclass.ipynb</span> — this saves the <span class="tag">.joblib</span> files to <span class="tag">models/</span>.</li>
         </ul>
+    </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -295,16 +304,31 @@ if binary_ok < 5 or multi_ok < 5:
     st.warning("⚠️ Some models are missing. Run `ml_model_binary.ipynb` and `ml_model_multiclass.ipynb` to generate them.")
 
 # ── Team ───────────────────────────────────────────────────────────────────────
-st.markdown('<p class="sec-hdr">The team</p>', unsafe_allow_html=True)
+from team_photos import marcos, nuria, dan, siddharth, teresa
+
+def team_card(col, name, b64, position="center top", zoom="100%"):
+    col.markdown(
+        f'<div class="team-card">'
+        f'<div style="width:72px;height:72px;border-radius:50%;'
+        f'border:2px solid #7c3aed;margin:0 auto 10px;'
+        f'overflow:hidden;display:flex;align-items:center;justify-content:center;">'
+        f'<img src="data:image/jpeg;base64,{b64}" '
+        f'style="width:{zoom};height:{zoom};'
+        f'object-fit:cover;object-position:{position};'
+        f'min-width:72px;min-height:72px;">'
+        f'</div>'
+        f'<div class="team-name">{name}</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:0 0 8px 0;">🧠 ML Team — ETL pipeline, ML model & trading strategy</p>', unsafe_allow_html=True)
 ml1, ml2, ml3, _, _ = st.columns(5)
-team_ml = [("👤", "Marcos Ortiz"), ("👤", "Dan Tigu"), ("👤", "Nuria Diaz")]
-for col, (av, name) in zip([ml1, ml2, ml3], team_ml):
-    col.markdown(f'<div class="team-card"><div class="team-av">{av}</div><div class="team-name">{name}</div></div>', unsafe_allow_html=True)
+team_card(ml1, "Marcos Ortiz",    marcos,    position="center 20%",  zoom="100%")
+team_card(ml2, "Dan Tigu",        dan,       position="center 20%",  zoom="100%")
+team_card(ml3, "Nuria Diaz",      nuria,     position="center 30%",  zoom="250%")
 
 st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:16px 0 8px 0;">💻 DEV Team — API wrapper, Streamlit web app & cloud deployment</p>', unsafe_allow_html=True)
 dev1, dev2, _, _, _ = st.columns(5)
-team_dev = [("👤", "Siddarth Murali"), ("👤", "Teresa Ghirardi")]
-for col, (av, name) in zip([dev1, dev2], team_dev):
-    col.markdown(f'<div class="team-card"><div class="team-av">{av}</div><div class="team-name">{name}</div></div>', unsafe_allow_html=True)
+team_card(dev1, "Siddharth Murali", siddharth, position="center 20%", zoom="100%")
+team_card(dev2, "Teresa Ghirardi",  teresa,    position="center 30%", zoom="250%")

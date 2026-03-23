@@ -96,15 +96,75 @@ section[data-testid="stSidebar"] [data-testid="stSlider"] [role="slider"] {
     border-color: #63b3ed !important;
 }
 
-/* Date picker calendar popup */
-[data-baseweb="calendar"] {
-    background-color: #1e3258 !important;
+/* ══ DATE PICKER — nuclear override ══ */
+
+[data-baseweb="base-input"] {
+    background-color: #1a2744 !important;
+    border-color: rgba(255,255,255,0.2) !important;
+}
+[data-baseweb="base-input"] input {
+    background-color: #1a2744 !important;
+    color: #e2e8f0 !important;
+    -webkit-text-fill-color: #e2e8f0 !important;
+    color-scheme: dark !important;
+}
+
+[data-baseweb="calendar"],
+[data-baseweb="calendar"] div,
+[data-baseweb="calendar"] span,
+[data-baseweb="calendar"] p,
+[data-baseweb="calendar"] button,
+[data-baseweb="calendar"] [role="gridcell"],
+[data-baseweb="calendar"] [role="columnheader"] {
+    background-color: #1e2d4a !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    border-color: rgba(255,255,255,0.1) !important;
+}
+
+[data-baseweb="calendar"] [role="columnheader"],
+[data-baseweb="calendar"] [role="columnheader"] * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+[data-baseweb="calendar"] button:hover,
+[data-baseweb="calendar"] button:hover * {
+    background-color: rgba(124,58,237,0.3) !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+[data-baseweb="calendar"] button[aria-selected="true"],
+[data-baseweb="calendar"] button[aria-selected="true"] * {
+    background-color: #7c3aed !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+[data-baseweb="calendar"] button[aria-label*="previous"],
+[data-baseweb="calendar"] button[aria-label*="next"],
+[data-baseweb="calendar"] button[aria-label*="Previous"],
+[data-baseweb="calendar"] button[aria-label*="Next"] {
+    background-color: #1e2d4a !important;
     color: #e2e8f0 !important;
 }
-[data-baseweb="calendar"] * { color: #e2e8f0 !important; }
-[data-baseweb="calendar"] [aria-selected="true"] > div {
-    background-color: #2563eb !important;
+[data-baseweb="calendar"] button[aria-label*="previous"] svg,
+[data-baseweb="calendar"] button[aria-label*="next"] svg,
+[data-baseweb="calendar"] button[aria-label*="Previous"] svg,
+[data-baseweb="calendar"] button[aria-label*="Next"] svg {
+    fill: #e2e8f0 !important;
+    stroke: #e2e8f0 !important;
 }
+
+[data-baseweb="calendar"] [data-baseweb="select"] > div,
+[data-baseweb="calendar"] select {
+    background-color: #1e2d4a !important;
+    color: #e2e8f0 !important;
+    -webkit-text-fill-color: #e2e8f0 !important;
+    border-color: rgba(255,255,255,0.15) !important;
+}
+
 
 /* Hide auto-generated Streamlit nav (we use our own) */
 [data-testid="stSidebarNavItems"] { display: none; }
@@ -546,7 +606,7 @@ def display_kpis_advanced(results, initial_cash):
 #  SHARED RENDER FUNCTION
 # ══════════════════════════════════════════════════════════════════════════════
 
-def render_results(results, ticker, initial_cash, strategy_name, is_advanced, show_pred_dist=False):
+def render_results(results, ticker, initial_cash, strategy_name, is_advanced, show_pred_dist=False, prefix=""):
     results = results.copy()
     results["Date"] = pd.to_datetime(results["Date"])
     results = results[results["Date"] >= pd.to_datetime(start_date)].reset_index(drop=True)
@@ -562,14 +622,14 @@ def render_results(results, ticker, initial_cash, strategy_name, is_advanced, sh
         display_kpis_simple(results, initial_cash)
 
     st.markdown('<p class="sec">Portfolio Performance</p>', unsafe_allow_html=True)
-    st.plotly_chart(portfolio_chart(results, ticker, initial_cash, strategy_name), use_container_width=True)
+    st.plotly_chart(portfolio_chart(results, ticker, initial_cash, strategy_name), use_container_width=True, key=f"{prefix}_portfolio")
 
     if is_advanced:
         st.markdown('<p class="sec">Drawdown</p>', unsafe_allow_html=True)
-        st.plotly_chart(drawdown_chart(results, ticker), use_container_width=True)
+        st.plotly_chart(drawdown_chart(results, ticker), use_container_width=True, key=f"{prefix}_drawdown")
 
     st.markdown('<p class="sec">Trade Signals</p>', unsafe_allow_html=True)
-    st.plotly_chart(signals_chart(results, ticker), use_container_width=True)
+    st.plotly_chart(signals_chart(results, ticker), use_container_width=True, key=f"{prefix}_signals")
 
     if show_pred_dist and "Pred Name" in results.columns:
         st.markdown('<p class="sec">Prediction Distribution</p>', unsafe_allow_html=True)
@@ -595,10 +655,20 @@ def render_results(results, ticker, initial_cash, strategy_name, is_advanced, sh
         log_cols.insert(3 if is_advanced else 2, "Pred Name")
 
     trade_log = results[results["Action"] != "HOLD"][
-        [c for c in log_cols if c in results.columns]
+    [c for c in log_cols if c in results.columns]
     ].copy()
-    trade_log["Date"] = trade_log["Date"].dt.strftime("%Y-%m-%d")
-    st.dataframe(trade_log, use_container_width=True, height=280)
+
+    if trade_log.empty:
+        st.markdown(
+            '<div class="warn">⚠️ No trades were executed. '
+            'In Advanced mode, try lowering the <strong>confidence threshold</strong> '
+            'in the sidebar — the model may never have exceeded the current threshold '
+            'during this period.</div>',
+            unsafe_allow_html=True
+        )
+    else:
+        trade_log["Date"] = trade_log["Date"].dt.strftime("%Y-%m-%d")
+        st.dataframe(trade_log, use_container_width=True, height=280)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -690,7 +760,7 @@ with tab_binary:
             else:
                 results = run_simple_binary(df_raw.copy(), pipeline_binary, features_binary, float(initial_cash))
                 label   = "Binary Simple (Buy 1 / Sell All)"
-        render_results(results, ticker, initial_cash, label, is_advanced, show_pred_dist=False)
+        render_results(results, ticker, initial_cash, label, is_advanced, show_pred_dist=False, prefix="binary")
     except FileNotFoundError as e: st.error(str(e))
     except ValueError as e:        st.error(str(e))
 
@@ -717,6 +787,6 @@ with tab_multi:
             else:
                 results = run_simple_multi(df_raw.copy(), pipeline_multi, features_multi, float(initial_cash))
                 label   = "Multi-Class Simple (Buy 1-2 / Sell All)"
-        render_results(results, ticker, initial_cash, label, is_advanced, show_pred_dist=True)
+        render_results(results, ticker, initial_cash, label, is_advanced, show_pred_dist=True, prefix="multi")
     except FileNotFoundError as e: st.error(str(e))
     except ValueError as e:        st.error(str(e))
