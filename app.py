@@ -7,6 +7,13 @@ Streamlit entry point. Run with: streamlit run app.py
 import streamlit as st
 from pathlib import Path
 
+try:
+    from team_photos import logo, marcos, nuria, dan, siddharth, teresa
+    PHOTOS_LOADED = True
+except Exception:
+    PHOTOS_LOADED = False
+    logo = marcos = nuria = dan = siddharth = teresa = None
+
 st.set_page_config(
     page_title="AUGUR Analytics | Automated Trading System",
     page_icon="🔮",
@@ -92,13 +99,14 @@ section[data-testid="stSidebar"] [data-baseweb="select"] svg { fill: #e2e8f0 !im
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    from team_photos import logo
-    st.markdown(
-        f'<img src="data:image/png;base64,{logo}" '
-        f'style="width:100%;max-width:200px;margin:0 auto 4px;display:block;">',
-        unsafe_allow_html=True
-    )
-
+    if PHOTOS_LOADED and logo:
+        st.markdown(
+            f'<img src="data:image/png;base64,{logo}" '
+            f'style="width:100%;max-width:200px;margin:0 auto 4px;display:block;">',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown("### 🔮 Augur Analytics")
     st.markdown("---")
     st.page_link("app.py",               label="🏠 Home")
     st.page_link("pages/go_live.py",     label="⚡ Go Live")
@@ -310,29 +318,31 @@ if binary_ok < 5 or multi_ok < 5:
     st.warning("⚠️ Some models are missing. Run `ml_model_binary.ipynb` and `ml_model_multiclass.ipynb` to generate them.")
 
 # ── Team ───────────────────────────────────────────────────────────────────────
-from team_photos import marcos, nuria, dan, siddharth, teresa
+st.markdown('<p class="sec-hdr">The team</p>', unsafe_allow_html=True)
 
 def team_card(col, name, b64, position="center top", zoom="100%"):
+    if b64:
+        avatar_html = (
+            f'<div style="width:72px;height:72px;border-radius:50%;'
+            f'border:2px solid #7c3aed;margin:0 auto 10px;'
+            f'overflow:hidden;display:flex;align-items:center;justify-content:center;">'
+            f'<img src="data:image/jpeg;base64,{b64}" '
+            f'style="width:{zoom};height:{zoom};object-fit:cover;object-position:{position};'
+            f'min-width:72px;min-height:72px;"></div>'
+        )
+    else:
+        avatar_html = '<div class="team-av">👤</div>'
     col.markdown(
-        f'<div class="team-card">'
-        f'<div style="width:72px;height:72px;border-radius:50%;'
-        f'border:2px solid #7c3aed;margin:0 auto 10px;'
-        f'overflow:hidden;display:flex;align-items:center;justify-content:center;">'
-        f'<img src="data:image/jpeg;base64,{b64}" '
-        f'style="width:{zoom};height:{zoom};'
-        f'object-fit:cover;object-position:{position};'
-        f'min-width:72px;min-height:72px;">'
-        f'</div>'
-        f'<div class="team-name">{name}</div>'
-        f'</div>',
+        f'<div class="team-card">{avatar_html}'
+        f'<div class="team-name">{name}</div></div>',
         unsafe_allow_html=True
     )
 
 st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:0 0 8px 0;">🧠 ML Team — ETL pipeline, ML model & trading strategy</p>', unsafe_allow_html=True)
 ml1, ml2, ml3, _, _ = st.columns(5)
-team_card(ml1, "Marcos Ortiz",    marcos,    position="center 20%",  zoom="100%")
-team_card(ml2, "Dan Tigu",        dan,       position="center 20%",  zoom="100%")
-team_card(ml3, "Nuria Diaz",      nuria,     position="center 30%",  zoom="250%")
+team_card(ml1, "Marcos Ortiz",     marcos,    position="center 20%", zoom="100%")
+team_card(ml2, "Dan Tigu",         dan,       position="center 20%", zoom="100%")
+team_card(ml3, "Nuria Diaz",       nuria,     position="center 30%", zoom="250%")
 
 st.markdown('<p style="font-size:0.85rem;color:#64748b;margin:16px 0 8px 0;">💻 DEV Team — API wrapper, Streamlit web app & cloud deployment</p>', unsafe_allow_html=True)
 dev1, dev2, _, _, _ = st.columns(5)
