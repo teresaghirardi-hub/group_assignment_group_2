@@ -27,9 +27,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pysimfin import PySimFin, SimFinAPIError, SimFinNotFoundError, SimFinRateLimitError
 from etl import get_api_key, add_technical_features, load_model
+from team_photos import logo
 
 # ── Page config ────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Backtesting | AlgoTrader", page_icon="🔁", layout="wide")
+st.set_page_config(page_title="Backtesting | AUGUR Analytics", page_icon="🔮", layout="wide")
 
 st.markdown("""
 <style>
@@ -181,7 +182,12 @@ section[data-testid="stSidebar"] [data-testid="stSlider"] [role="slider"] {
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 📈 AlgoTrader")
+    st.markdown(
+        f'<img src="data:image/png;base64,{logo}" '
+        f'style="width:100%;max-width:200px;margin:0 auto 4px;display:block;">',
+        unsafe_allow_html=True
+    )
+
     st.markdown("---")
     st.page_link("app.py",               label="🏠 Home")
     st.page_link("pages/go_live.py",     label="⚡ Go Live")

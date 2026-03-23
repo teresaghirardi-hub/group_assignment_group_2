@@ -1,11 +1,30 @@
-# 📈 AlgoTrader — Automated Daily Trading System
+# 🔮 Augur Analytics — Automated Daily Trading System
 
 > ML-powered trading system that predicts next-day stock price movements for 5 major US
 > equities and serves predictions through a live Streamlit web app.
 
+*Interpret. Predict. Act.*
+
 🔗 **Live App:** [https://groupassignmentgroup2-bpuv6yx5hebhulox5gvvpn.streamlit.app/]
 
 ---
+
+## The Name
+
+In ancient Rome, **augurs** were priests who interpreted signs from nature such as the flight 
+of birds, patterns in the sky, to predict the outcomes of decisions and events.
+
+**Augur Analytics** applies the same principle to financial markets. Instead of birds 
+and omens, we interpret candlestick patterns, momentum signals, and technical indicators. 
+Instead of intuition, we use machine learning.
+
+The name reflects what the platform does at its core: **read the signs, predict what 
+comes next, and act with confidence.**
+
+> *"Auspicium est signum ex avibus." — The omen is in the signs.*
+
+---
+
 
 ## The Team
 
@@ -18,7 +37,7 @@
 
 ## Overview
 
-AlgoTrader is a full-stack machine learning application that predicts whether a stock's
+AUGUR Analytics is a full-stack machine learning application that predicts whether a stock's
 closing price will be higher or lower the next trading day. It combines a rigorous ETL
 pipeline, trained classification models, and a live Streamlit interface with two core
 modules:

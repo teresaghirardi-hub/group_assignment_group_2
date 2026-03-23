@@ -8,8 +8,8 @@ import streamlit as st
 from pathlib import Path
 
 st.set_page_config(
-    page_title="AlgoTrader | Automated Trading System",
-    page_icon="📈",
+    page_title="AUGUR Analytics | Automated Trading System",
+    page_icon="🔮",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -92,7 +92,13 @@ section[data-testid="stSidebar"] [data-baseweb="select"] svg { fill: #e2e8f0 !im
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 📈 AlgoTrader")
+    from team_photos import logo
+    st.markdown(
+        f'<img src="data:image/png;base64,{logo}" '
+        f'style="width:100%;max-width:200px;margin:0 auto 4px;display:block;">',
+        unsafe_allow_html=True
+    )
+
     st.markdown("---")
     st.page_link("app.py",               label="🏠 Home")
     st.page_link("pages/go_live.py",     label="⚡ Go Live")
@@ -103,7 +109,7 @@ with st.sidebar:
 # ── Hero ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="hero">
-    <div class="hero-title">Algo<span>Trader</span></div>
+    <div class="hero-title">AUGUR<span> Analytics</span></div>
     <p class="hero-sub">
         An end-to-end automated daily trading system built for the
         <strong style="color:#e2e8f0;">Python for Data Analytics II</strong> group project at IE University.
