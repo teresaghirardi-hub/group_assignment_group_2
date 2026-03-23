@@ -12,7 +12,7 @@
 | Team | Role | Members |
 |------|------|---------|
 | 🧠 ML Team | ETL pipeline, ML model & trading strategy | Marcos Ortiz, Nuria Diaz, Dan Tigu |
-| 💻 DEV Team | API wrapper, Streamlit web app & cloud deployment | Siddarth Murali, Teresa Ghirardi |
+| 💻 DEV Team | API wrapper, Streamlit web app & cloud deployment | Siddharth Murali, Teresa Ghirardi |
 
 ---
 
